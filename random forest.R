@@ -45,6 +45,6 @@ ggplot() +
              colour = 'red')+
   geom_point(aes(x=1:576, y = as.vector(y_pred)),
              colour = 'blue') +
-  ggtitle('Truth or Bluff (Random Forest Regression)') +
+  ggtitle('Random Forest Regression') +
   xlab('Time') +
   ylab('Fwts')
