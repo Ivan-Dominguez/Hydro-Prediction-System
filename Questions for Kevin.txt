@@ -1,5 +1,9 @@
 Questions for Kevin:
 
 1 - how to convert time from sin, cos to original format?
-2- Scaled files: what else was changed? How did you scale them?
-3- weather data: is the data in file “Weather data” the same than the data in the columns of “ scaled files”?
+2- Scaled files: How did you scale them? what else was changed (NA's, cleaned)? 
+3- weather data: is the data in file “Weather data” the same than the data in the columns 	of “ scaled files”?
+4- why amplitudes don't match?
+5- models in binaries?
+6- is the Dark Sky API free?
+7- Dummy variable for Hollidays?
