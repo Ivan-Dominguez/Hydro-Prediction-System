@@ -41,10 +41,10 @@ library(caret)
 library(ggplot2)
 y_pred = predict(model,newdata = as.h2o(test_set[-16]))
 ggplot() +
-  geom_point(aes(x=1:576, y = test_set$y),
+  geom_point(aes(x=1:289, y = test_set$y),
              colour = 'red')+
-  geom_point(aes(x=1:576, y = as.vector(y_pred)),
+  geom_point(aes(x=1:289, y = as.vector(y_pred)),
              colour = 'blue') +
-  ggtitle('Random Forest Regression') +
+  ggtitle('Random Forest Regression(random day)') +
   xlab('Time') +
   ylab('Fwts')
