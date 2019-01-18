@@ -1,0 +1,5 @@
+Questions for Kevin:
+
+1 - how to convert time from sin, cos to original format?
+2- Scaled files: what else was changed? How did you scale them?
+3- weather data: is the data in file “Weather data” the same than the data in the columns of “ scaled files”?
