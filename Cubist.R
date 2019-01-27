@@ -4,12 +4,12 @@ library(Cubist)
 library(caTools)
 library(rpart)
 library (dplyr)
-library(ggplot2)
 library(caret)
 library(rpart.plot)
 library(reticulate)
 library(keras)
 library(readr)
+library(plotly)
 
 setwd("~/Google Drive/Degree Project/Repository/Hydro-Prediction-System/training_data/Scaled Training Files")
 
@@ -41,7 +41,7 @@ fwts_lstm_model_lag288_mv <-
   )
 
 first_point<-as.numeric(1)
-last_point<-as.numeric(576)
+last_point<-as.numeric(288)
 
 #create arrays
 testX_sint_vector<- test_set$sint[first_point:last_point]
@@ -110,9 +110,21 @@ columns = c("datetime",
             "fwts_pred",
             "pats_pred")
 
+colnames(predictions_df) <- columns
+
 predictions_df$fwts_pred <- predictions_fwts
 
+# format date and time
+predictionDate <- as.Date(x = "2014-01-02")
+predictions_df$datetime <-
+  seq(ymd_hm(paste(predictionDate, "00:00")), ymd_hm(paste(predictionDate, "23:55")), by =
+        "5 min")
 
+predictions_df$date<-as.Date(predictions_df$datetime)
+predictions_df$time<-strftime(predictions_df$datetime,format="%H:%M:%S",tz="UTC")
+
+
+#read attributes needed to reverse scaling process
 attribute_centre_fwts <-
   as.numeric(
     read_lines(
@@ -139,18 +151,87 @@ Prediction_cubist_scaled_back<-
 predictions_df$fwts_pred <-
   (predictions_df$fwts_pred * attribute_scale_fwts + attribute_centre_fwts) ^ 2
 
-y_scaled_back<-(y_var * attribute_scale_fwts + attribute_centre_fwts) ^ 2
+
+#LSTM Predicted Daily Peak
+ymax_fwts_pred = max(predictions_df$fwts_pred)
+xcoord_fwts_pred <-
+  predictions_df$datetime[which.max(predictions_df$fwts_pred)]
+
+#Cubist Predicted Daily Peak
+ymax_cubist_pred = max(Prediction_cubist_scaled_back)
+xcoord_cubist_pred <-
+  predictions_df$datetime[which.max(Prediction_cubist_scaled_back)]
+
+#Test data peak
+ymax_test_pred = max(test_scaled_back[first_point:last_point])
+xcoord_test_pred <-
+  predictions_df$datetime[which.max(test_scaled_back[first_point:last_point])]
+
 
 #**********************************************************************#
 
 #visualize
-ggplot() +
-  geom_line(aes(x=first_point:last_point, y = test_scaled_back[first_point:last_point]),
-            colour = 'red')+
-  geom_line(aes(x=first_point:last_point, y = as.vector(Prediction_cubist_scaled_back[first_point:last_point])),
-            colour = 'blue') +
-  geom_line(aes(x=first_point:last_point, y = as.vector(predictions_df$fwts_pred [first_point:last_point])),
-            colour = 'green4') +
-  ggtitle('Cubist Algorithm') +
-  xlab('Time') +
-  ylab('Fwts')
+pl <-
+  plot_ly(
+    mode = 'lines+markers'
+  ) %>%
+  add_trace(
+    y =  ~ test_scaled_back[first_point:last_point],
+    x =  ~ predictions_df$datetime[first_point:last_point],
+    mode = 'lines',
+    type = 'scatter',
+    name = "Test Data",
+    line = list(color = ("red"))
+  ) %>%
+  add_trace(
+    y =  ~ predictions_df$fwts_pred,
+    x =  ~ predictions_df$datetime,
+    mode = 'lines',
+    type = 'scatter',
+    name = "LSTM",
+    line = list(color = ("green"))
+  ) %>%
+  add_trace(
+    y =  ~ Prediction_cubist_scaled_back[first_point:last_point],
+    x =  ~ predictions_df$datetime[first_point:last_point],
+    mode = 'lines',
+    type = 'scatter',
+    name = "Cubist",
+    line = list(color = ("blue"))
+  ) %>%
+  add_trace(
+    x =  ~ xcoord_test_pred,
+    y =  ~ ymax_test_pred,
+    mode = 'markers',
+    type = 'scatter',
+    name = paste("Real daily Peak",xcoord_test_pred),
+    marker = list(color = ("black"),size=9,symbol="triangle-up")
+  ) %>%
+  add_trace(
+    x =  ~ xcoord_fwts_pred,
+    y =  ~ ymax_fwts_pred,
+    mode = 'markers',
+    type = 'scatter',
+    name = paste("LSTM Predicted Daily Peak",xcoord_fwts_pred),
+    marker = list(color = ("yellow"),size=9,symbol="circle")
+  ) %>%
+  add_trace(
+    x =  ~ xcoord_cubist_pred,
+    y =  ~ ymax_cubist_pred,
+    mode = 'markers',
+    type = 'scatter',
+    name = paste("Cubist Predicted Daily Peak",xcoord_test_pred),
+    marker = list(color = ("orange"),size=9,symbol="square")
+  ) %>%
+  layout(
+    title = paste('Prediction for', predictionDate),
+    xaxis = list(
+      title = 'Time',
+      autotick = TRUE,
+      showticklabels = TRUE
+      
+    ),
+    yaxis = list(title = "Power Consumption")
+  )
+
+pl
