@@ -1,0 +1,167 @@
+library(xgboost)
+library(h2o)
+library(Metrics)
+library(dplyr)
+library(Cubist)
+library(caTools)
+library(rpart)
+library (dplyr)
+library(caret)
+library(rpart.plot)
+library(reticulate)
+library(keras)
+library(readr)
+library(plotly)
+library(lubridate)
+library(stringr)
+library(recipes)
+library(neuralnet)
+library(Cubist)
+h2o.init()
+##############################################33
+data <- read.csv("G:/degree project/trainingFile_fwts.csv", header=TRUE, sep=",", na.strings=c("NA", "NULL"),stringsAsFactors=FALSE)
+data$pres = as.numeric(data$pres)
+######################################### set dates ############################################
+prediction_date_str<-"2018-03-05"
+
+prediction_date <- as.Date(prediction_date_str)
+day_before<-prediction_date - 1
+last_30days_date <- prediction_date - 365
+
+#dates to string
+day_before_str<-as.character.Date(day_before)
+last_30days_date_str<-as.character.Date(last_30days_date)
+
+#boundaries
+training_beginning<-data %>% filter(str_detect(datetime, last_30days_date_str))
+training_end<-data %>% filter(str_detect(datetime, day_before_str))
+
+start<-training_beginning$X[1]
+end<-training_end$X[288]
+
+######################################### train/test sets  AND Model ############################################
+training_set_real<-data[start:end,]
+training_set<-training_set_real[,c(-1,-2,-19,-20)]
+
+test_set_real<-data %>% filter(str_detect(datetime, prediction_date_str))
+test_set<-test_set_real[,c(-1,-2,-19,-20)]
+#########################################################
+model3<-cubist(x = training_set[-1], y = training_set$fwts, committees = 20, neighbors = 5)
+
+
+
+variables=c('temp','dew','hum','wspd','vis','pres','mon','tue','wed','thu','fri','sat','sun','sint','cost')
+model1<-h2o.randomForest(x=variables,
+                         y="fwts",
+                         ntrees=500,
+                         max_depth=10,
+                         training_frame=as.h2o(training_set),
+                         seed=1242525
+)
+model2 = xgboost(data = as.matrix(training_set[-1]), label = training_set$fwts, nrounds = 100)
+y_pred2 = predict(model2, newdata = as.matrix(test_set[-1]))
+y_pred1 = predict(model1, newdata = as.h2o(test_set[-1]))
+y_pred3 = predict(model3, (test_set[-1]))
+
+#visualize
+
+#RF Predicted Daily Peaky
+RFmax_fwts_pred = max(as.vector(y_pred1))
+RFcoord_fwts_pred <-
+  test_set_real$datetime[which.max(as.vector(y_pred1))]
+
+#XG Predicted Daily Peak
+XGmax_pred = max(as.vector(y_pred2))
+XGcoord_pred <-
+  test_set_real$datetime[which.max(as.vector(y_pred2))]
+
+#Test data peak
+ymax_test_pred = max(test_set$fwts)
+xcoord_test_pred <-
+  test_set_real$datetime[which.max(test_set$fwts)]
+
+#Cubist Predicted Daily Peak
+CUmax_pred = max(as.vector(y_pred3))
+CUcoord_pred <-
+  test_set_real$datetime[which.max(as.vector(y_pred3))]
+
+
+
+pl <-
+  plot_ly(
+    mode = 'lines+markers'
+  ) %>%
+  add_trace(
+    y =  ~ test_set$fwts,
+    x =  ~ test_set_real$datetime,
+    mode = 'lines',
+    type = 'scatter',
+    name = "Test Data",
+    line = list(color = ("black"))
+  ) %>%
+  add_trace(
+    y =  ~ as.vector(y_pred1),
+    x =  ~ test_set_real$datetime,
+    mode = 'lines',
+    type = 'scatter',
+    name = "RF",
+    line = list(color = ("green"))
+  ) %>%
+  add_trace(
+    y =  ~ as.vector(y_pred2),
+    x =  ~ test_set_real$datetime,
+    mode = 'lines',
+    type = 'scatter',
+    name = "XGboost",
+    line = list(color = ("blue"))
+  ) %>%
+  add_trace(
+    x =  ~ xcoord_test_pred,
+    y =  ~ ymax_test_pred,
+    mode = 'markers',
+    type = 'scatter',
+    name = paste("Real daily Peak",xcoord_test_pred),
+    marker = list(color = ("black"),size=9,symbol="circle")
+  ) %>%
+  add_trace(
+    x =  ~ RFcoord_fwts_pred,
+    y =  ~ RFmax_fwts_pred,
+    mode = 'markers',
+    type = 'scatter',
+    name = paste("RF Predicted Daily Peak",RFcoord_fwts_pred),
+    marker = list(color = ("green"),size=9,symbol="circle")
+  ) %>%
+  add_trace(
+    x =  ~ XGcoord_pred,
+    y =  ~ XGmax_pred,
+    mode = 'markers',
+    type = 'scatter',
+    name = paste("XGboost Predicted Daily Peak",XGcoord_pred),
+    marker = list(color = ("blue"),size=9,symbol="circle")
+  ) %>%
+  add_trace(
+    y =  ~ as.vector(y_pred3),
+    x =  ~ test_set_real$datetime,
+    mode = 'lines',
+    type = 'scatter',
+    name = "Cubist",
+    line = list(color = ("pink"))
+  )%>%
+  add_trace(
+    x =  ~ CUcoord_pred,
+    y =  ~ CUmax_pred,
+    mode = 'markers',
+    type = 'scatter',
+    name = paste("Cubist Predicted Daily Peak",CUcoord_pred),
+    marker = list(color = ("pink"),size=9,symbol="circle")
+  ) %>%
+  layout(
+    title = paste('Prediction for',as.Date(prediction_date)),
+    xaxis = list(
+      title = 'Time',
+      autotick = TRUE,
+      showticklabels = TRUE
+    ),
+    yaxis = list(title = "Power Consumption")
+  )
+pl
