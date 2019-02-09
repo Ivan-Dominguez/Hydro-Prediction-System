@@ -1,5 +1,3 @@
-# Cubist Algorithm
-
 library(Cubist)
 library(caTools)
 library(rpart)
@@ -12,6 +10,7 @@ library(readr)
 library(plotly)
 library(lubridate)
 
+
 setwd("~/Google Drive/Degree Project/Repository/Hydro-Prediction-System/training_data/Scaled Training Files")
 
 #load data
@@ -21,16 +20,22 @@ y_var <- read.csv("scaled_training_fwts_YVar.csv", header=TRUE, sep=",", na.stri
 #merge files
 x_vars$y <- as.numeric(paste(y_var$fwts))
 
-#split in training and test sets
-split <- sample.split(x_vars$y, SplitRatio = 0.8)
-trainning_set <- subset(x_vars, split == TRUE)
-test_set <- subset(x_vars, split == FALSE)
+
+#training set (Jan 2014 to Dec 2016)
+training_set<-x_vars[1:212088,]
+
+#training set (Jan 2017 to apr 2018)
+test_set<-x_vars[212089:347328,]
 
 #train model
-model_tree <- cubist(x = trainning_set[, -16], y = trainning_set$y)
+cubist_pred <- cubist(x = training_set[, -16], y = training_set$y)
 
 #predictions
-Prediction_cubist <- predict(model_tree, test_set)
+Prediction_cubist <- train(form = y~.,
+                           data = test_set,
+                           method = 'cubist')
+
+
 
 #********************************************************#
 
@@ -41,8 +46,9 @@ fwts_lstm_model_lag288_mv <-
     compile = TRUE
   )
 
-first_point<-as.numeric(289)
-last_point<-as.numeric(576)
+day_selected<-as.numeric(3)
+first_point<-as.numeric((day_selected-1) * 288 + 1)
+last_point<-as.numeric(first_point + 287)
 
 #create arrays
 testX_sint_vector<- test_set$sint[first_point:last_point]
@@ -116,7 +122,7 @@ colnames(predictions_df) <- columns
 predictions_df$fwts_pred <- predictions_fwts
 
 # format date and time
-predictionDate <- as.Date(x = "2014-01-02")
+predictionDate <- as.Date(x = "2017-01-01")
 predictions_df$datetime <-
   seq(ymd_hm(paste(predictionDate, "00:00")), ymd_hm(paste(predictionDate, "23:55")), by =
         "5 min")
@@ -159,15 +165,14 @@ xcoord_fwts_pred <-
   predictions_df$datetime[which.max(predictions_df$fwts_pred)]
 
 #Cubist Predicted Daily Peak
-ymax_cubist_pred = max(Prediction_cubist_scaled_back)
+ymax_cubist_pred = max(Prediction_cubist_scaled_back[first_point:last_point])
 xcoord_cubist_pred <-
-  predictions_df$datetime[which.max(Prediction_cubist_scaled_back)]
+  predictions_df$datetime[which.max(Prediction_cubist_scaled_back[first_point:last_point])]
 
 #Test data peak
 ymax_test_pred = max(test_scaled_back[first_point:last_point])
 xcoord_test_pred <-
   predictions_df$datetime[which.max(test_scaled_back[first_point:last_point])]
-
 
 #**********************************************************************#
 
