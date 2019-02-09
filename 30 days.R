@@ -12,6 +12,7 @@ library(lubridate)
 library(stringr)
 library(recipes)
 library(neuralnet)
+library(xgboost)
 
 setwd("~/Google Drive/Degree Project/Repository/Hydro-Prediction-System/training_data")
 
@@ -29,7 +30,7 @@ receipe_object_fwts <- recipe(data) %>%
 data <- bake(receipe_object_fwts,data)
 
 ######################################### set dates ############################################
-prediction_date_str<-"2018-02-21"
+prediction_date_str<-"2018-03-02"
 
 prediction_date <- as.Date(prediction_date_str)
 day_before<-prediction_date - 1
@@ -48,24 +49,23 @@ end<-training_end$X[288]
 
 ######################################### train/test sets  AND Model ############################################
 training_set<-data[start:end,]
-training_set<-training_set[,c(-1,-2,-19,-20)]
+#training_set<-training_set[,c(-1,-2,-19,-20)]
 
 test_set<-data %>% filter(str_detect(datetime, prediction_date_str))
 
-cubist_model<-cubist(x = training_set[,-1], y = training_set$fwts, committees = 20, neighbors = 5)
+cubist_model<-cubist(x = training_set[,c(-1,-2,-19,-20)], y = training_set$fwts, committees = 20, neighbors = 5)
 Prediction_cubist <- predict(cubist_model, test_set)
 
+formula<-as.formula(paste("fwts ~", paste(n[!n %in% "fwts"], collapse = " + ")))
 
-# neural_net_model<-neuralnet(form = fwts~.,
-#                             data = training_set$fwts
-#                             )
-# 
-# Prediction_M5 <- predict(M5_model, test_set)
-# 
-# #predictions
-# Prediction_M5 <- train(form = y~.,
-#                            data = test_set,
-#                            method = 'cubist')
+neuralnet_model<-nn <- neuralnet(formula,data=training_set,hidden=c(1),linear.output=T)
+
+xgboost_model <- xgboost(data = test_set[,-1], label = training_set$fwts, nrounds = 150, max_depth = 3,
+                        eta = 04, gamma = 0, subsample = 0.75, colsample_bytree = 0.8, rate_drop = 0.01, 
+                        skip_drop = 0.95, min_child_weight = 1)
+
+Prediction_xgboost <- predict(xgboost_model, test_set)
+
 
 #********************************************************#
 
@@ -182,6 +182,10 @@ test_scaled_back<-
 Prediction_cubist_scaled_back<-
   (Prediction_cubist * attribute_scale_fwts + attribute_centre_fwts) ^ 2
 
+Prediction_xgboost_scaled_back<-
+  (Prediction_xgboost * attribute_scale_fwts + attribute_centre_fwts) ^ 2
+
+
 predictions_df$fwts_pred <-
   (predictions_df$fwts_pred * attribute_scale_fwts + attribute_centre_fwts) ^ 2
 
@@ -195,6 +199,12 @@ xcoord_fwts_pred <-
 ymax_cubist_pred = max(Prediction_cubist_scaled_back[144:288])
 xcoord_cubist_pred <-
   predictions_df$datetime[which.max(Prediction_cubist_scaled_back[144:288]) + 143]
+
+#XGBoost Predicted Daily Peak
+ymax_xgboost_pred = max(Prediction_xgboost_scaled_back[144:288])
+xcoord_xgboostt_pred <-
+  predictions_df$datetime[which.max(Prediction_xgboost_scaled_back[144:288]) + 143]
+
 
 #Test data peak
 ymax_test_pred = max(test_scaled_back)
@@ -233,6 +243,14 @@ pl <-
     line = list(color = ("blue"))
   ) %>%
   add_trace(
+    y =  ~ Prediction_xgboost_scaled_back,
+    x =  ~ predictions_df$datetime,
+    mode = 'lines',
+    type = 'scatter',
+    name = "XGBoost",
+    line = list(color = ("orange"))
+  ) %>%
+  add_trace(
     x =  ~ xcoord_test_pred,
     y =  ~ ymax_test_pred,
     mode = 'markers',
@@ -255,6 +273,14 @@ pl <-
     type = 'scatter',
     name = paste("Cubist Predicted Daily Peak",xcoord_cubist_pred),
     marker = list(color = ("orange"),size=9,symbol="square")
+  ) %>%
+  add_trace(
+    x =  ~ xcoord_cubist_pred,
+    y =  ~ ymax_cubist_pred,
+    mode = 'markers',
+    type = 'scatter',
+    name = paste("XGBoost Predicted Daily Peak",xcoord_cubist_pred),
+    marker = list(color = ("black"),size=9,symbol="square")
   ) %>%
   layout(
     title = paste('Prediction for', predictionDate),
