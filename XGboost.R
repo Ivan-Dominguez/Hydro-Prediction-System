@@ -42,23 +42,21 @@ classifier
 #TESTING:XGboost
 ##############################################
 i=1;
-errors=0;
-error<-c(1:51)
-error<-NULL
-RMSE<-c(1:51)
-RMSE<-NULL
-#1206 days in total,test after 700days
-test=sample(700:1206,50,replace=FALSE)
-test=test*288
-
-while(i<=10) {
-testing_sub_set=x_vars[(test[i]):(test[i]+287),]
+berrors=0;
+berror<-c(1:51)
+berror<-NULL
+bRMSE<-c(1:51)
+bRMSE<-NULL
+#1206 days in total,test after 700days,test 15hours interval
+test=sample(200000:347328,50,replace=FALSE)
+while(i<=50) {
+testing_sub_set=x_vars[(test[i]):(test[i]+179),]
 testing_train=x_vars[1:(test[i]),]
 test_model= xgboost(data = as.matrix(testing_train[-16]), label = testing_train$y, nrounds = 100)
 pred=predict(test_model, newdata = as.matrix(testing_sub_set[-16]))
-RMSE[i]=rmse(testing_sub_set$y,pred)
-error[i]=abs(which.max(testing_sub_set$y)-which.max(pred))*5
-errors=errors+error[i];
+bRMSE[i]=rmse(testing_sub_set$y,pred)
+berror[i]=abs(which.max(testing_sub_set$y)-which.max(pred))*5
+berrors=berrors+berror[i];
 i=i+1;}
 
 ggplot() +
@@ -75,12 +73,13 @@ which.max(pred)
 #TESTING:RF
 ##############################################
 i=1;
-errors=0;
-error(1,2,3)
+rerrors=0;
+rerror<-c(1:51)
+rerror<-NULL
+rRMSE<-c(1:51)
+rRMSE<-NULL
 #1206 days in total,test after 700days
-test=sample(700:1206,50,replace=FALSE)
-test=test*288
-while(i<=5) {
+while(i<=50) {
   testing_sub_set=x_vars[(test[i]):(test[i]+287),]
   testing_train=x_vars[1:(test[i]),]
   test_model<-h2o.randomForest(x=variables,
@@ -91,7 +90,7 @@ while(i<=5) {
                                  seed=1242525
   )
   pred=as.vector(predict(test_model, newdata = as.h2o(testing_sub_set[-16])))
-  RMSE[i]=rmse(testing_sub_set$y,pred)
+  rRMSE[i]=rmse(testing_sub_set$y,pred)
   #ggplot() +
   #  geom_point(aes(x=1:288, y = testing_sub_set$y),..
   #             colour = 'red')+
@@ -103,8 +102,10 @@ while(i<=5) {
   
   #which.max(testing_sub_set$y)
   #which.max(pred)
-  error[i]=abs(which.max(testing_sub_set$y)-which.max(pred))*5
-  errors=errors+error[i];
+  rerror[i]=abs(which.max(testing_sub_set$y)-which.max(pred))*5
+  rerrors=rerrors+rerror[i];
   i=i+1;}
 
 print(error)
+test[9]
+install.packages('DMwR')
