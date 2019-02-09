@@ -22,7 +22,7 @@ h2o.init()
 data <- read.csv("G:/degree project/trainingFile_fwts.csv", header=TRUE, sep=",", na.strings=c("NA", "NULL"),stringsAsFactors=FALSE)
 data$pres = as.numeric(data$pres)
 ######################################### set dates ############################################
-prediction_date_str<-"2018-03-05"
+prediction_date_str<-"2018-03-10"
 
 prediction_date <- as.Date(prediction_date_str)
 day_before<-prediction_date - 1
@@ -48,7 +48,14 @@ test_set<-test_set_real[,c(-1,-2,-19,-20)]
 #########################################################
 model3<-cubist(x = training_set[-1], y = training_set$fwts, committees = 20, neighbors = 5)
 
-
+model4=h2o.deeplearning(y='fwts',
+                                  x=c('temp','dew','hum','wspd','vis','pres','mon','tue','wed','thu','fri','sat','sun','sint','cost'),
+                                  activation = 'Rectifier',
+                                  training_frame=as.h2o(training_set),
+                                  hidden=c(10,10),
+                                  epochs=100,
+                                  train_samples_per_iteration=-2
+)
 
 variables=c('temp','dew','hum','wspd','vis','pres','mon','tue','wed','thu','fri','sat','sun','sint','cost')
 model1<-h2o.randomForest(x=variables,
@@ -58,22 +65,22 @@ model1<-h2o.randomForest(x=variables,
                          training_frame=as.h2o(training_set),
                          seed=1242525
 )
-model2 = xgboost(data = as.matrix(training_set[-1]), label = training_set$fwts, nrounds = 100)
+model2 = xgboost(data = as.matrix(training_set[-1]), label = training_set$fwts,  nrounds = 100)
 y_pred2 = predict(model2, newdata = as.matrix(test_set[-1]))
 y_pred1 = predict(model1, newdata = as.h2o(test_set[-1]))
 y_pred3 = predict(model3, (test_set[-1]))
-
+y_pred4 = predict(model4,newdata=as.h2o(test_set[-1]))
 #visualize
 
 #RF Predicted Daily Peaky
-RFmax_fwts_pred = max(as.vector(y_pred1))
+RFmax_fwts_pred = max(as.vector(y_pred1)[144:288])
 RFcoord_fwts_pred <-
-  test_set_real$datetime[which.max(as.vector(y_pred1))]
+  test_set_real$datetime[which.max(as.vector(y_pred1)[144:288])+143]
 
 #XG Predicted Daily Peak
-XGmax_pred = max(as.vector(y_pred2))
+XGmax_pred = max(as.vector(y_pred2)[144:288])
 XGcoord_pred <-
-  test_set_real$datetime[which.max(as.vector(y_pred2))]
+  test_set_real$datetime[which.max(as.vector(y_pred2)[144:288])+143]
 
 #Test data peak
 ymax_test_pred = max(test_set$fwts)
@@ -81,10 +88,14 @@ xcoord_test_pred <-
   test_set_real$datetime[which.max(test_set$fwts)]
 
 #Cubist Predicted Daily Peak
-CUmax_pred = max(as.vector(y_pred3))
+CUmax_pred = max(as.vector(y_pred3)[144:288])
 CUcoord_pred <-
-  test_set_real$datetime[which.max(as.vector(y_pred3))]
+  test_set_real$datetime[which.max(as.vector(y_pred3)[144:288])+143]
 
+#DeepLearning Predicted Daily Peak
+DLmax_pred = max(as.vector(y_pred4)[144:288])
+DLcoord_pred <-
+  test_set_real$datetime[which.max(as.vector(y_pred4)[144:288])+143]
 
 
 pl <-
@@ -154,6 +165,22 @@ pl <-
     type = 'scatter',
     name = paste("Cubist Predicted Daily Peak",CUcoord_pred),
     marker = list(color = ("pink"),size=9,symbol="circle")
+  )%>%
+  add_trace(
+    y =  ~ as.vector(y_pred4),
+    x =  ~ test_set_real$datetime,
+    mode = 'lines',
+    type = 'scatter',
+    name = "Deep Learning",
+    line = list(color = ("red"))
+  )%>%
+  add_trace(
+    x =  ~ DLcoord_pred,
+    y =  ~ DLmax_pred,
+    mode = 'markers',
+    type = 'scatter',
+    name = paste("Deep Learning Predicted Daily Peak",DLcoord_pred),
+    marker = list(color = ("red"),size=9,symbol="circle")
   ) %>%
   layout(
     title = paste('Prediction for',as.Date(prediction_date)),
