@@ -14,11 +14,12 @@ library(recipes)
 library(neuralnet)
 library(xgboost)
 
-setwd("~/Google Drive/Degree Project/Repository/Hydro-Prediction-System/training_data")
+setwd("~/Google Drive/Degree Project/Repository/Hydro-prediction-System/training_data")
 
 #load data
 data <- read.csv("trainingFile_fwts.csv", header=TRUE, sep=",", na.strings=c("NA", "NULL"),stringsAsFactors=FALSE)
 data$pres = as.numeric(data$pres)
+data$pres[is.na(data$pres)] <- 0
 
 #scale data
 receipe_object_fwts <- recipe(data) %>%
@@ -29,12 +30,20 @@ receipe_object_fwts <- recipe(data) %>%
 
 data <- bake(receipe_object_fwts,data)
 
+#Load FWTS Model
+fwts_lstm_model_lag288_mv <-
+  load_model_hdf5(
+    "/Users/ivan/Google Drive/Degree Project/Repository/Hydro-prediction-System/training_data/saved_models/Stateful_Lag288_FWTS_MV16_MODEL",
+    compile = TRUE
+  )
+
+
 ######################################### set dates ############################################
-prediction_date_str<-"2018-03-02"
+prediction_date_str<-"2018-03-11"
 
 prediction_date <- as.Date(prediction_date_str)
 day_before<-prediction_date - 1
-last_30days_date <- prediction_date - 365
+last_30days_date <- prediction_date - 30
 
 #dates to string
 day_before_str<-as.character.Date(day_before)
@@ -47,34 +56,37 @@ training_end<-data %>% filter(str_detect(datetime, day_before_str))
 start<-training_beginning$X[1]
 end<-training_end$X[288]
 
-######################################### train/test sets  AND Model ############################################
+######################################### train & test sets ###################################
 training_set<-data[start:end,]
-#training_set<-training_set[,c(-1,-2,-19,-20)]
+training_set<-training_set[,c(-1,-2,-19,-20)]
 
 test_set<-data %>% filter(str_detect(datetime, prediction_date_str))
+test_set<-test_set[,c(-1,-2,-19,-20)]
 
-cubist_model<-cubist(x = training_set[,c(-1,-2,-19,-20)], y = training_set$fwts, committees = 20, neighbors = 5)
-Prediction_cubist <- predict(cubist_model, test_set)
+######################################### Models ############################################
 
-formula<-as.formula(paste("fwts ~", paste(n[!n %in% "fwts"], collapse = " + ")))
+#Cubist
+cubist_model<-cubist(x = training_set[,-1], y = training_set$fwts, committees = 20, neighbors = 5)
+prediction_cubist <- predict(cubist_model, test_set)
 
-neuralnet_model<-nn <- neuralnet(formula,data=training_set,hidden=c(1),linear.output=T)
+# #neural network
+# n <- names(training_set)
+# formula<-as.formula(paste("fwts ~", paste(n[!n %in% "fwts"], collapse = " + ")))
+# 
+# neuralnet_model<-neuralnet(formula, data = training_set, hidden = c(3,2),linear.output=T, stepmax=1e7)
+# prediction_neuralnet<-neuralnet::compute(neuralnet_model, test_set[-1])
 
-xgboost_model <- xgboost(data = test_set[,-1], label = training_set$fwts, nrounds = 150, max_depth = 3,
-                        eta = 04, gamma = 0, subsample = 0.75, colsample_bytree = 0.8, rate_drop = 0.01, 
+
+#xgboost
+xgboost_model <- xgboost(data = as.matrix(training_set[-1]), label = training_set$fwts, nrounds = 150, max_depth = 3,
+                        eta = 0.4, gamma = 0, subsample = 0.75, colsample_bytree = 0.8, rate_drop = 0.01,
                         skip_drop = 0.95, min_child_weight = 1)
 
-Prediction_xgboost <- predict(xgboost_model, test_set)
+prediction_xgboost <- predict(xgboost_model, newdata = as.matrix(test_set[-1]))
 
 
 #********************************************************#
-
-#Load FWTS Model
-fwts_lstm_model_lag288_mv <-
-  load_model_hdf5(
-    "/Users/ivan/Google Drive/Degree Project/Repository/Hydro-Prediction-System/training_data/saved_models/Stateful_Lag288_FWTS_MV16_MODEL",
-    compile = TRUE
-  )
+#LSTM
 
 #create arrays
 testX_sint_vector<- test_set$sint
@@ -162,58 +174,63 @@ predictions_df$time<-strftime(predictions_df$datetime,format="%H:%M:%S",tz="UTC"
 attribute_centre_fwts <-
   as.numeric(
     read_lines(
-      "/Users/ivan/Google Drive/Degree Project/Repository/Hydro-Prediction-System/training_data/saved_attributes/attribute_centre_fwts_stateful_lag288.txt"
+      "/Users/ivan/Google Drive/Degree Project/Repository/Hydro-prediction-System/training_data/saved_attributes/attribute_centre_fwts_stateful_lag288.txt"
     )
   )
 
 attribute_scale_fwts <-
   as.numeric(
     read_lines(
-      "/Users/ivan/Google Drive/Degree Project/Repository/Hydro-Prediction-System/training_data/saved_attributes/attribute_scale_fwts_stateful_lag288.txt"
+      "/Users/ivan/Google Drive/Degree Project/Repository/Hydro-prediction-System/training_data/saved_attributes/attribute_scale_fwts_stateful_lag288.txt"
     )
   )
 
-#Rescale Predictions using Saved Attributes
+#******************************* Rescale predictions ***************************************#
 
 test_scaled_back<-
   (test_set$fwts * attribute_scale_fwts + attribute_centre_fwts) ^ 2
 
 
-Prediction_cubist_scaled_back<-
-  (Prediction_cubist * attribute_scale_fwts + attribute_centre_fwts) ^ 2
+prediction_cubist_scaled_back<-
+  (prediction_cubist * attribute_scale_fwts + attribute_centre_fwts) ^ 2
 
-Prediction_xgboost_scaled_back<-
-  (Prediction_xgboost * attribute_scale_fwts + attribute_centre_fwts) ^ 2
+prediction_xgboost_scaled_back<-
+  (prediction_xgboost * attribute_scale_fwts + attribute_centre_fwts) ^ 2
 
+# prediction_neuralnet_scaled_back<-
+#   (prediction_neuralnet$net.result * attribute_scale_fwts + attribute_centre_fwts) ^ 2
 
+#LSTM
 predictions_df$fwts_pred <-
   (predictions_df$fwts_pred * attribute_scale_fwts + attribute_centre_fwts) ^ 2
 
-
+#******************************* find peak values ***************************************#
 #LSTM Predicted Daily Peak
 ymax_fwts_pred = max(predictions_df$fwts_pred)
 xcoord_fwts_pred <-
   predictions_df$datetime[which.max(predictions_df$fwts_pred)]
 
 #Cubist Predicted Daily Peak
-ymax_cubist_pred = max(Prediction_cubist_scaled_back[144:288])
+ymax_cubist_pred = max(prediction_cubist_scaled_back[144:288])
 xcoord_cubist_pred <-
-  predictions_df$datetime[which.max(Prediction_cubist_scaled_back[144:288]) + 143]
+  predictions_df$datetime[which.max(prediction_cubist_scaled_back[144:288]) + 143]
 
 #XGBoost Predicted Daily Peak
-ymax_xgboost_pred = max(Prediction_xgboost_scaled_back[144:288])
-xcoord_xgboostt_pred <-
-  predictions_df$datetime[which.max(Prediction_xgboost_scaled_back[144:288]) + 143]
+ymax_xgboost_pred = max(prediction_xgboost_scaled_back[144:288])
+xcoord_xgboost_pred <-
+  predictions_df$datetime[which.max(prediction_xgboost_scaled_back[144:288]) + 143]
 
+# #neuralnet
+# ymax_neuralnet_pred = max(prediction_neuralnet_scaled_back[144:288])
+# xcoord_neuralnet_pred <-
+#   predictions_df$datetime[which.max(prediction_neuralnet_scaled_back[144:288]) + 143]
 
 #Test data peak
 ymax_test_pred = max(test_scaled_back)
 xcoord_test_pred <-
   predictions_df$datetime[which.max(test_scaled_back)]
 
-#**********************************************************************#
-
-#visualize
+#******************************* visualize ***************************************#
 pl <-
   plot_ly(
     mode = 'lines+markers'
@@ -235,7 +252,7 @@ pl <-
     line = list(color = ("green"))
   ) %>%
   add_trace(
-    y =  ~ Prediction_cubist_scaled_back,
+    y =  ~ prediction_cubist_scaled_back,
     x =  ~ predictions_df$datetime,
     mode = 'lines',
     type = 'scatter',
@@ -243,19 +260,27 @@ pl <-
     line = list(color = ("blue"))
   ) %>%
   add_trace(
-    y =  ~ Prediction_xgboost_scaled_back,
+    y =  ~ prediction_xgboost_scaled_back,
     x =  ~ predictions_df$datetime,
     mode = 'lines',
     type = 'scatter',
     name = "XGBoost",
     line = list(color = ("orange"))
   ) %>%
+  # add_trace(
+  #   y =  ~ prediction_neuralnet_scaled_back,
+  #   x =  ~ predictions_df$datetime,
+  #   mode = 'lines',
+  #   type = 'scatter',
+  #   name = "Neural Network",
+  #   line = list(color = ("purple"))
+  # ) %>%
   add_trace(
     x =  ~ xcoord_test_pred,
     y =  ~ ymax_test_pred,
     mode = 'markers',
     type = 'scatter',
-    name = paste("Real daily Peak",xcoord_test_pred),
+    name = paste("Real daily Peak", strftime(xcoord_test_pred,format="%H:%M:%S",tz="UTC")),
     marker = list(color = ("black"),size=9,symbol="triangle-up")
   ) %>%
   add_trace(
@@ -263,7 +288,7 @@ pl <-
     y =  ~ ymax_fwts_pred,
     mode = 'markers',
     type = 'scatter',
-    name = paste("LSTM Predicted Daily Peak",xcoord_fwts_pred),
+    name = paste("LSTM Predicted Daily Peak", strftime(xcoord_fwts_pred,format="%H:%M:%S",tz="UTC")),
     marker = list(color = ("yellow"),size=9,symbol="circle")
   ) %>%
   add_trace(
@@ -271,19 +296,19 @@ pl <-
     y =  ~ ymax_cubist_pred,
     mode = 'markers',
     type = 'scatter',
-    name = paste("Cubist Predicted Daily Peak",xcoord_cubist_pred),
+    name = paste("Cubist Predicted Daily Peak", strftime(xcoord_cubist_pred,format="%H:%M:%S",tz="UTC")),
     marker = list(color = ("orange"),size=9,symbol="square")
   ) %>%
   add_trace(
-    x =  ~ xcoord_cubist_pred,
-    y =  ~ ymax_cubist_pred,
+    x =  ~ xcoord_xgboost_pred,
+    y =  ~ ymax_xgboost_pred,
     mode = 'markers',
     type = 'scatter',
-    name = paste("XGBoost Predicted Daily Peak",xcoord_cubist_pred),
+    name = paste("XGBoost Predicted Daily Peak",strftime(xcoord_xgboost_pred,format="%H:%M:%S",tz="UTC")),
     marker = list(color = ("black"),size=9,symbol="square")
   ) %>%
   layout(
-    title = paste('Prediction for', predictionDate),
+    title = paste('prediction for', predictionDate),
     xaxis = list(
       title = 'Time',
       autotick = TRUE,
