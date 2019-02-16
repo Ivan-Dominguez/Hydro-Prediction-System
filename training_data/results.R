@@ -54,7 +54,7 @@ fwts_lstm_model_lag288_mv <-
     training_end<-data %>% filter(str_detect(datetime, day_before_str))
     
     start<-training_beginning$X[1]
-    end<-training_end$X[288]
+    end<-training_end$X[nrow(training_end)]
     
     ######################################### train & test sets ###################################
     training_set<-data[start:end,]
@@ -62,6 +62,18 @@ fwts_lstm_model_lag288_mv <-
     
     test_set<-data %>% filter(str_detect(datetime, prediction_date_str))
     test_set<-test_set[,c(-1,-2,-19,-20)]
+    
+    #fill missing rows copies of the last row
+    if(nrow(test_set) < 288){
+      rows_needed<-288 - nrow(test_set)
+      last_row<-test_set[nrow(test_set),]
+      new_row<-data.frame(last_row)
+
+      for(i in seq(1:rows_needed)){
+        test_set <- rbind(test_set,new_row)
+      }
+      
+    }
     
     ######################################### Models ############################################
     
@@ -224,7 +236,9 @@ fwts_lstm_model_lag288_mv <-
 #******************************* stats ***************************************#
 
 #prediction times dataframe
-pred_times <-data.frame(matrix(nrow = 30, ncol = 4))
+prediction_range<-365
+
+pred_times <-data.frame(matrix(nrow = prediction_range, ncol = 4))
 columns = c("xgboost", "cubist", "LSTM", "real_peak")
 colnames(pred_times) <- columns
 
@@ -234,17 +248,16 @@ pred_times$cubist<-as.POSIXct(pred_times$cubist)
 pred_times$LSTM<-as.POSIXct(pred_times$LSTM)
 pred_times$real_peak<-as.POSIXct(pred_times$real_peak)
 
-
 #get prediction for 30 days
-start_date <- as.Date("2018-03-01")
+start_date <- as.Date("2017-01-01")
 
-for (i in seq(1:2)) {
+for (i in seq(1:prediction_range)){
   
   start_date_str<-as.character.Date(start_date)
   
   pred_list<- accurrate.results(start_date_str)
   
-  pred_times$xgboost[i]<-as.POSIXct(pred_list[1])
+  pred_times$xgboost[i]<-pred_list[1]
   pred_times$cubist[i]<-pred_list[2]
   pred_times$LSTM[i]<-pred_list[3]
   pred_times$real_peak[i]<-pred_list[4]
@@ -252,15 +265,17 @@ for (i in seq(1:2)) {
   start_date<-start_date + 1
 }
 
+write.csv(pred_times, file = "pred_times.csv")
+
 #compute time differences
-result_list <-data.frame(matrix(nrow = 30, ncol = 3))
+result_list <-data.frame(matrix(nrow = prediction_range, ncol = 3))
 columns = c("xgboost", "cubist", "LSTM")
 colnames(result_list) <- columns
 result_list[is.na(result_list)]<-0
 
 time_limit <- 15/60 # minutes/60
 
-for(row in 1:nrow(pred_times)){
+for(row in 1:prediction_range){
   for (column in 1:3){
     
     pred_peak<-pred_times[row, column]
@@ -274,3 +289,7 @@ for(row in 1:nrow(pred_times)){
  }
 }
 
+write.csv(result_list, file = "result_list.csv")
+
+
+#visualize results

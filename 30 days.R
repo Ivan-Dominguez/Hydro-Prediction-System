@@ -39,7 +39,7 @@ fwts_lstm_model_lag288_mv <-
 
 
 ######################################### set dates ############################################
-prediction_date_str<-"2018-03-11"
+prediction_date_str<-"2017-01-02"
 
 prediction_date <- as.Date(prediction_date_str)
 day_before<-prediction_date - 1
@@ -54,7 +54,7 @@ training_beginning<-data %>% filter(str_detect(datetime, last_30days_date_str))
 training_end<-data %>% filter(str_detect(datetime, day_before_str))
 
 start<-training_beginning$X[1]
-end<-training_end$X[288]
+end<-training_end$X[nrow(training_end)]
 
 ######################################### train & test sets ###################################
 training_set<-data[start:end,]
@@ -62,6 +62,19 @@ training_set<-training_set[,c(-1,-2,-19,-20)]
 
 test_set<-data %>% filter(str_detect(datetime, prediction_date_str))
 test_set<-test_set[,c(-1,-2,-19,-20)]
+
+#fill missing rows copies of the last row
+if(nrow(test_set) < 288){
+  rows_needed<-288 - nrow(test_set)
+  last_row<-test_set[nrow(test_set),]
+  new_row<-data.frame(last_row)
+  #fwts=0,sint=0,cost=0,temp=0,dew=0,hum=0,wspd=0,vis=0,pres=0,mon=0,tue=wed   thu   fri   sat   sun
+  for(i in seq(1:rows_needed)){
+    
+    test_set <- rbind(test_set,new_row)
+  }
+  
+}
 
 ######################################### Models ############################################
 
@@ -145,6 +158,7 @@ fwts_testX_input_list <- list(
 #predictions FWTS Model
 predictions_fwts <-
   fwts_lstm_model_lag288_mv %>% predict(fwts_testX_input_list, batch_size = 72) %>% .[, 1]
+
 pred_array_fwts <-
   array(data = predictions_fwts, dim = c(length(predictions_fwts), 1, 1))
 
