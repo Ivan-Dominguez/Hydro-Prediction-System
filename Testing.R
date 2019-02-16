@@ -17,14 +17,18 @@ library(stringr)
 library(recipes)
 library(neuralnet)
 library(Cubist)
+library(R2HTML)
+library(reporteRs)
 h2o.init()
 ##############################################33
 data <- read.csv("G:/degree project/trainingFile_fwts.csv", header=TRUE, sep=",", na.strings=c("NA", "NULL"),stringsAsFactors=FALSE)
 data$pres = as.numeric(data$pres)
 ######################################### set dates ############################################
-prediction_date_str<-"2018-03-10"
-
+prediction_date_str<-"2018-03-19"
 prediction_date <- as.Date(prediction_date_str)
+i=0
+while(i<5){
+prediction_date=prediction_date+1;
 day_before<-prediction_date - 1
 last_30days_date <- prediction_date - 365
 
@@ -43,7 +47,7 @@ end<-training_end$X[288]
 training_set_real<-data[start:end,]
 training_set<-training_set_real[,c(-1,-2,-19,-20)]
 
-test_set_real<-data %>% filter(str_detect(datetime, prediction_date_str))
+test_set_real<-data %>% filter(str_detect(datetime, toString(prediction_date)))
 test_set<-test_set_real[,c(-1,-2,-19,-20)]
 #########################################################
 model3<-cubist(x = training_set[-1], y = training_set$fwts, committees = 20, neighbors = 5)
@@ -70,7 +74,9 @@ y_pred2 = predict(model2, newdata = as.matrix(test_set[-1]))
 y_pred1 = predict(model1, newdata = as.h2o(test_set[-1]))
 y_pred3 = predict(model3, (test_set[-1]))
 y_pred4 = predict(model4,newdata=as.h2o(test_set[-1]))
+y_pred5 = (as.vector(y_pred1)+y_pred2+y_pred3+as.vector(y_pred4))/4
 #visualize
+
 
 #RF Predicted Daily Peaky
 RFmax_fwts_pred = max(as.vector(y_pred1)[144:288])
@@ -83,9 +89,9 @@ XGcoord_pred <-
   test_set_real$datetime[which.max(as.vector(y_pred2)[144:288])+143]
 
 #Test data peak
-ymax_test_pred = max(test_set$fwts)
+ymax_test_pred = max(test_set$fwts[144:288])
 xcoord_test_pred <-
-  test_set_real$datetime[which.max(test_set$fwts)]
+  test_set_real$datetime[which.max(test_set$fwts[144:288])+143]
 
 #Cubist Predicted Daily Peak
 CUmax_pred = max(as.vector(y_pred3)[144:288])
@@ -97,6 +103,13 @@ DLmax_pred = max(as.vector(y_pred4)[144:288])
 DLcoord_pred <-
   test_set_real$datetime[which.max(as.vector(y_pred4)[144:288])+143]
 
+#Average of 4 models
+AVEmax_pred = max(as.vector(y_pred5)[144:288])
+AVEcoord_pred <-
+  test_set_real$datetime[which.max(as.vector(y_pred5)[144:288])+143]
+
+#Median of peak time
+MEDIAN_pred=median(c(AVEcoord_pred,RFcoord_fwts_pred,DLcoord_pred,XGcoord_pred,CUcoord_pred))
 
 pl <-
   plot_ly(
@@ -181,6 +194,30 @@ pl <-
     type = 'scatter',
     name = paste("Deep Learning Predicted Daily Peak",DLcoord_pred),
     marker = list(color = ("red"),size=9,symbol="circle")
+  )%>%
+  add_trace(
+    y =  ~ as.vector(y_pred5),
+    x =  ~ test_set_real$datetime,
+    mode = 'lines',
+    type = 'scatter',
+    name = "Average of models",
+    line = list(color = ("yellow"))
+  )%>%
+  add_trace(
+    x =  ~ MEDIAN_pred,
+    y =  ~ 58000,
+    mode = 'markers',
+    type = 'scatter',
+    name = paste("MEDIAN of models Predicted Daily Peak",MEDIAN_pred),
+    marker = list(color = ("orange"),size=9,symbol="circle")
+  )%>%
+  add_trace(
+    x =  ~ AVEcoord_pred,
+    y =  ~ AVEmax_pred,
+    mode = 'markers',
+    type = 'scatter',
+    name = paste("AVERAGE of models Predicted Daily Peak",AVEcoord_pred),
+    marker = list(color = ("yellow"),size=9,symbol="circle")
   ) %>%
   layout(
     title = paste('Prediction for',as.Date(prediction_date)),
@@ -192,3 +229,7 @@ pl <-
     yaxis = list(title = "Power Consumption")
   )
 pl
+output=paste("G:/degree project/OUTPUT/test/",prediction_date,".html", sep="")
+htmlwidgets::saveWidget(pl, output)
+i=i+1;
+}
