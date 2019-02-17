@@ -12,6 +12,7 @@ library(lubridate)
 library(stringr)
 library(recipes)
 library(xgboost)
+library(h2o)
 
 setwd("~/Google Drive/Degree Project/Repository/Hydro-prediction-System/training_data")
 
@@ -27,7 +28,7 @@ receipe_object_fwts <- recipe(data) %>%
   step_scale("fwts") %>%
   prep()
 
-data <- bake(receipe_object_fwts,data)
+scaled_data <- bake(receipe_object_fwts,data)
 
 #Load FWTS Model
 fwts_lstm_model_lag288_mv <-
@@ -36,6 +37,7 @@ fwts_lstm_model_lag288_mv <-
     compile = TRUE
   )
 
+h2o.init()
 
 
  accurrate.results<-function(prediction_date_str){
@@ -43,7 +45,7 @@ fwts_lstm_model_lag288_mv <-
     ######################################### set dates ############################################
     prediction_date <- as.Date(prediction_date_str)
     day_before<-prediction_date - 1
-    last_30days_date <- prediction_date - 30
+    last_30days_date <- prediction_date - 2
     
     #dates to string
     day_before_str<-as.character.Date(day_before)
@@ -62,8 +64,11 @@ fwts_lstm_model_lag288_mv <-
     
     test_set<-data %>% filter(str_detect(datetime, prediction_date_str))
     test_set<-test_set[,c(-1,-2,-19,-20)]
+
+    scaled_test_set<-scaled_data %>% filter(str_detect(datetime, prediction_date_str))
+    scaled_test_set<-scaled_test_set[,c(-1,-2,-19,-20)]
     
-    #fill missing rows copies of the last row
+    #fill missing rows with copies of the last row
     if(nrow(test_set) < 288){
       rows_needed<-288 - nrow(test_set)
       last_row<-test_set[nrow(test_set),]
@@ -86,7 +91,32 @@ fwts_lstm_model_lag288_mv <-
                              eta = 0.4, gamma = 0, subsample = 0.75, colsample_bytree = 0.8, rate_drop = 0.01,
                              skip_drop = 0.95, min_child_weight = 1)
     
-    prediction_xgboost <- predict(xgboost_model, newdata = as.matrix(test_set[-1]))
+    prediction_xgboost <-as.vector(predict(xgboost_model, newdata = as.matrix(test_set[-1])))
+    
+    #Deep learning
+    deepLearning_model <- h2o.deeplearning(y='fwts',
+                                           x=c('temp','dew','hum','wspd','vis','pres','mon','tue','wed','thu','fri','sat','sun','sint','cost'),
+                                           activation = 'Rectifier',
+                                           training_frame=as.h2o(training_set),
+                                           hidden=c(10,10),
+                                           epochs=100,
+                                           train_samples_per_iteration=-2,
+                                           ignore_const_cols = FALSE
+    )
+    prediction_deepLearning <- as.vector(predict(deepLearning_model, newdata=as.h2o(test_set[-1])))
+    
+    #Random Forest
+    variables=c('temp','dew','hum','wspd','vis','pres','mon','tue','wed','thu','fri','sat','sun','sint','cost')
+    RF_model<-h2o.randomForest(x=variables,
+                               y="fwts",
+                               ntrees=500,
+                               max_depth=10,
+                               training_frame=as.h2o(training_set),
+                               seed=1242525,
+                               ignore_const_cols = FALSE
+    )
+    
+    prediction_RF = as.vector(predict(RF_model, newdata = as.h2o(test_set[-1])))
     
     
     #********************************************************#
@@ -189,22 +219,7 @@ fwts_lstm_model_lag288_mv <-
         )
       )
     
-    #******************************* Rescale predictions ***************************************#
-    
-    test_scaled_back<-
-      (test_set$fwts * attribute_scale_fwts + attribute_centre_fwts) ^ 2
-    
-    
-    prediction_cubist_scaled_back<-
-      (prediction_cubist * attribute_scale_fwts + attribute_centre_fwts) ^ 2
-    
-    prediction_xgboost_scaled_back<-
-      (prediction_xgboost * attribute_scale_fwts + attribute_centre_fwts) ^ 2
-    
-    # prediction_neuralnet_scaled_back<-
-    #   (prediction_neuralnet$net.result * attribute_scale_fwts + attribute_centre_fwts) ^ 2
-    
-    #LSTM
+    #******************************* Rescale LSTM predictions ***************************************#    
     predictions_df$fwts_pred <-
       (predictions_df$fwts_pred * attribute_scale_fwts + attribute_centre_fwts) ^ 2
     
@@ -215,36 +230,49 @@ fwts_lstm_model_lag288_mv <-
       predictions_df$datetime[which.max(predictions_df$fwts_pred)]
     
     #Cubist Predicted Daily Peak
-    ymax_cubist_pred = max(prediction_cubist_scaled_back[144:288])
+    ymax_cubist_pred = max(prediction_cubist[144:288])
     xcoord_cubist_pred <-
-      predictions_df$datetime[which.max(prediction_cubist_scaled_back[144:288]) + 143]
+      predictions_df$datetime[which.max(prediction_cubist[144:288]) + 143]
     
     #XGBoost Predicted Daily Peak
-    ymax_xgboost_pred = max(prediction_xgboost_scaled_back[144:288])
+    ymax_xgboost_pred = max(prediction_xgboost[144:288])
     xcoord_xgboost_pred <-
-      predictions_df$datetime[which.max(prediction_xgboost_scaled_back[144:288]) + 143]
+      predictions_df$datetime[which.max(as.vector(prediction_xgboost[144:288])) + 143]
+    
+    #Deep learning Predicted Daily Peak
+    ymax_deepLearning_pred = max(prediction_deepLearning[144:288])
+    xcoord_deepLearning_pred <-
+      predictions_df$datetime[which.max(as.vector(prediction_deepLearning[144:288])) + 143]
+    
+    #Random Forest Predicted Daily Peak
+    ymax_RF_pred = max(prediction_RF[144:288])
+    xcoord_RF_pred <-
+      predictions_df$datetime[which.max(as.vector(prediction_RF[144:288])) + 143]
     
     #Test data peak
-    ymax_test_pred = max(test_scaled_back)
+    ymax_test_pred = max(test_set$fwts)
     xcoord_test_pred <-
-      predictions_df$datetime[which.max(test_scaled_back)]
+      predictions_df$datetime[which.max(test_set$fwts[144:288]) + 143]
     
-    peak_list<-c(xcoord_xgboost_pred, xcoord_cubist_pred,xcoord_fwts_pred, xcoord_test_pred)
+    peak_list<-c(xcoord_xgboost_pred, xcoord_cubist_pred,xcoord_deepLearning_pred,
+                 xcoord_RF_pred, xcoord_fwts_pred, xcoord_test_pred)
 
     return(peak_list)
 }
 #******************************* stats ***************************************#
 
 #prediction times dataframe
-prediction_range<-365
+prediction_range<-2
 
-pred_times <-data.frame(matrix(nrow = prediction_range, ncol = 4))
-columns = c("xgboost", "cubist", "LSTM", "real_peak")
+pred_times <-data.frame(matrix(nrow = prediction_range, ncol = 6))
+columns = c("xgboost", "cubist","deepLearning","rf", "LSTM", "real_peak")
 colnames(pred_times) <- columns
 
 #format columns as POSIXct
 pred_times$xgboost<-as.POSIXct(pred_times$xgboost)
 pred_times$cubist<-as.POSIXct(pred_times$cubist)
+pred_times$deepLearning<-as.POSIXct(pred_times$deepLearning)
+pred_times$rf<-as.POSIXct(pred_times$rf)
 pred_times$LSTM<-as.POSIXct(pred_times$LSTM)
 pred_times$real_peak<-as.POSIXct(pred_times$real_peak)
 
@@ -259,32 +287,33 @@ for (i in seq(1:prediction_range)){
   
   pred_times$xgboost[i]<-pred_list[1]
   pred_times$cubist[i]<-pred_list[2]
-  pred_times$LSTM[i]<-pred_list[3]
-  pred_times$real_peak[i]<-pred_list[4]
+  pred_times$deepLearning[i]<-pred_list[3]
+  pred_times$rf[i]<-pred_list[4]
+  pred_times$LSTM[i]<-pred_list[5]
+  pred_times$real_peak[i]<-pred_list[6]
   
   start_date<-start_date + 1
 }
 
-write.csv(pred_times, file = "pred_times.csv")
+write.csv(pred_times, file = "pred_times_2017.csv")
 
 #compute time differences
-result_list <-data.frame(matrix(nrow = prediction_range, ncol = 3))
-columns = c("xgboost", "cubist", "LSTM")
+result_list <-data.frame(matrix(nrow = prediction_range, ncol = 5))
+columns = c("xgboost", "cubist","deepLearning","rf", "LSTM")
 colnames(result_list) <- columns
-result_list[is.na(result_list)]<-0
 
-time_limit <- 15/60 # minutes/60
+time_limit <-15/60 # minutes/60
 
 for(row in 1:prediction_range){
-  for (column in 1:3){
+  for (column in 1:5){
     
     pred_peak<-pred_times[row, column]
     real_peak<-pred_times$real_peak[row]
    
     time_diff<-abs(pred_times[row, column] - pred_times$real_peak[row])
 
-   if(time_diff <= time_limit){
-     result_list[row, column]<-result_list[row, column] + 1
+   if(time_diff < time_limit){
+     result_list[row, column]<-as.numeric(time_diff)
   }
  }
 }
@@ -292,4 +321,3 @@ for(row in 1:prediction_range){
 write.csv(result_list, file = "result_list.csv")
 
 
-#visualize results
