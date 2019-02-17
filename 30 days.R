@@ -11,7 +11,7 @@ library(plotly)
 library(lubridate)
 library(stringr)
 library(recipes)
-library(neuralnet)
+library(h2o)
 library(xgboost)
 
 setwd("~/Google Drive/Degree Project/Repository/Hydro-prediction-System/training_data")
@@ -28,7 +28,7 @@ receipe_object_fwts <- recipe(data) %>%
   step_scale("fwts") %>%
   prep()
 
-data <- bake(receipe_object_fwts,data)
+scaled_data <- bake(receipe_object_fwts,data)
 
 #Load FWTS Model
 fwts_lstm_model_lag288_mv <-
@@ -37,9 +37,10 @@ fwts_lstm_model_lag288_mv <-
     compile = TRUE
   )
 
+h2o.init()
 
 ######################################### set dates ############################################
-prediction_date_str<-"2017-01-02"
+prediction_date_str<-"2017-02-08"
 
 prediction_date <- as.Date(prediction_date_str)
 day_before<-prediction_date - 1
@@ -63,6 +64,9 @@ training_set<-training_set[,c(-1,-2,-19,-20)]
 test_set<-data %>% filter(str_detect(datetime, prediction_date_str))
 test_set<-test_set[,c(-1,-2,-19,-20)]
 
+scaled_test_set<-scaled_data %>% filter(str_detect(datetime, prediction_date_str))
+scaled_test_set<-scaled_test_set[,c(-1,-2,-19,-20)]
+
 #fill missing rows copies of the last row
 if(nrow(test_set) < 288){
   rows_needed<-288 - nrow(test_set)
@@ -82,73 +86,87 @@ if(nrow(test_set) < 288){
 cubist_model<-cubist(x = training_set[,-1], y = training_set$fwts, committees = 20, neighbors = 5)
 prediction_cubist <- predict(cubist_model, test_set)
 
-# #neural network
-# n <- names(training_set)
-# formula<-as.formula(paste("fwts ~", paste(n[!n %in% "fwts"], collapse = " + ")))
-# 
-# neuralnet_model<-neuralnet(formula, data = training_set, hidden = c(3,2),linear.output=T, stepmax=1e7)
-# prediction_neuralnet<-neuralnet::compute(neuralnet_model, test_set[-1])
-
-
 #xgboost
 xgboost_model <- xgboost(data = as.matrix(training_set[-1]), label = training_set$fwts, nrounds = 150, max_depth = 3,
                         eta = 0.4, gamma = 0, subsample = 0.75, colsample_bytree = 0.8, rate_drop = 0.01,
                         skip_drop = 0.95, min_child_weight = 1)
 
-prediction_xgboost <- predict(xgboost_model, newdata = as.matrix(test_set[-1]))
+prediction_xgboost <-as.vector(predict(xgboost_model, newdata = as.matrix(test_set[-1])))
 
+#Deep learning
+deepLearning_model <- h2o.deeplearning(y='fwts',
+                                       x=c('temp','dew','hum','wspd','vis','pres','mon','tue','wed','thu','fri','sat','sun','sint','cost'),
+                                       activation = 'Rectifier',
+                                       training_frame=as.h2o(training_set),
+                                       hidden=c(10,10),
+                                       epochs=100,
+                                       train_samples_per_iteration=-2
+)
+prediction_deepLearning <- as.vector(predict(deepLearning_model, newdata=as.h2o(test_set[-1])))
+
+#Random Forest
+variables=c('temp','dew','hum','wspd','vis','pres','mon','tue','wed','thu','fri','sat','sun','sint','cost')
+RF_model<-h2o.randomForest(x=variables,
+                           y="fwts",
+                           ntrees=500,
+                           max_depth=10,
+                           training_frame=as.h2o(training_set),
+                           seed=1242525
+)
+
+prediction_RF = as.vector(predict(RF_model, newdata = as.h2o(test_set[-1])))
 
 #********************************************************#
 #LSTM
 
 #create arrays
-testX_sint_vector<- test_set$sint
+testX_sint_vector<- scaled_test_set$sint
 testX_sint_array <- array(data = testX_sint_vector,dim = c(length(testX_sint_vector),1,1))
 
-testX_cost_vector<-test_set$cost
+testX_cost_vector<-scaled_test_set$cost
 testX_cost_array <- array(data = testX_cost_vector,dim = c(length(testX_cost_vector),1,1))
 
-testX_temp_vector<-test_set$temp
+testX_temp_vector<-scaled_test_set$temp
 testX_temp_array <- array(data = testX_temp_vector,dim = c(length(testX_temp_vector),1,1))
 
-testX_hum_vector<-test_set$hum
+testX_hum_vector<-scaled_test_set$hum
 testX_hum_array <- array(data = testX_hum_vector,dim = c(length(testX_hum_vector),1,1))
 
-testX_dew_vector<-test_set$dew
+testX_dew_vector<-scaled_test_set$dew
 testX_dew_array <- array(data = testX_dew_vector,dim = c(length(testX_dew_vector),1,1))
 
-testX_wspd_vector<-test_set$wspd
+testX_wspd_vector<-scaled_test_set$wspd
 testX_wspd_array <- array(data = testX_wspd_vector,dim = c(length(testX_wspd_vector),1,1))
 
-testX_vis_vector<-test_set$vis
+testX_vis_vector<-scaled_test_set$vis
 testX_vis_array <- array(data = testX_vis_vector,dim = c(length(testX_vis_vector),1,1))
 
-testX_pres_vector<-test_set$pres
+testX_pres_vector<-scaled_test_set$pres
 testX_pres_array <- array(data = testX_pres_vector,dim = c(length(testX_pres_vector),1,1))
 
 
-testX_mon_vector<-test_set$mon
+testX_mon_vector<-scaled_test_set$mon
 testX_mon_array <- array(data = testX_mon_vector,dim = c(length(testX_mon_vector),1,1))
 
-testX_tue_vector<-test_set$tue
+testX_tue_vector<-scaled_test_set$tue
 testX_tue_array <- array(data = testX_tue_vector,dim = c(length(testX_tue_vector),1,1))
 
-testX_wed_vector<-test_set$wed
+testX_wed_vector<-scaled_test_set$wed
 testX_wed_array <- array(data = testX_wed_vector,dim = c(length(testX_wed_vector),1,1))
 
-testX_thu_vector<-test_set$thu
+testX_thu_vector<-scaled_test_set$thu
 testX_thu_array <- array(data = testX_thu_vector,dim = c(length(testX_thu_vector),1,1))
 
-testX_fri_vector<-test_set$fri
+testX_fri_vector<-scaled_test_set$fri
 testX_fri_array <- array(data = testX_fri_vector,dim = c(length(testX_fri_vector),1,1))
 
-testX_sat_vector<-test_set$sat
+testX_sat_vector<-scaled_test_set$sat
 testX_sat_array <- array(data = testX_sat_vector,dim = c(length(testX_sat_vector),1,1))
 
-testX_sun_vector<-test_set$sun
+testX_sun_vector<-scaled_test_set$sun
 testX_sun_array <- array(data = testX_sun_vector,dim = c(length(testX_sun_vector),1,1))
 
-testX_fwts_vector<-test_set$fwts
+testX_fwts_vector<-scaled_test_set$fwts
 testX_fwts_array <- array(data = testX_fwts_vector,dim = c(length(testX_fwts_vector),1,1))
 
 fwts_testX_input_list <- list(
@@ -199,22 +217,8 @@ attribute_scale_fwts <-
     )
   )
 
-#******************************* Rescale predictions ***************************************#
+#******************************* Rescale LSTM predictions ***************************************#
 
-test_scaled_back<-
-  (test_set$fwts * attribute_scale_fwts + attribute_centre_fwts) ^ 2
-
-
-prediction_cubist_scaled_back<-
-  (prediction_cubist * attribute_scale_fwts + attribute_centre_fwts) ^ 2
-
-prediction_xgboost_scaled_back<-
-  (prediction_xgboost * attribute_scale_fwts + attribute_centre_fwts) ^ 2
-
-# prediction_neuralnet_scaled_back<-
-#   (prediction_neuralnet$net.result * attribute_scale_fwts + attribute_centre_fwts) ^ 2
-
-#LSTM
 predictions_df$fwts_pred <-
   (predictions_df$fwts_pred * attribute_scale_fwts + attribute_centre_fwts) ^ 2
 
@@ -225,32 +229,36 @@ xcoord_fwts_pred <-
   predictions_df$datetime[which.max(predictions_df$fwts_pred)]
 
 #Cubist Predicted Daily Peak
-ymax_cubist_pred = max(prediction_cubist_scaled_back[144:288])
+ymax_cubist_pred = max(prediction_cubist[144:288])
 xcoord_cubist_pred <-
-  predictions_df$datetime[which.max(prediction_cubist_scaled_back[144:288]) + 143]
+  predictions_df$datetime[which.max(prediction_cubist[144:288]) + 143]
 
 #XGBoost Predicted Daily Peak
-ymax_xgboost_pred = max(prediction_xgboost_scaled_back[144:288])
+ymax_xgboost_pred = max(prediction_xgboost[144:288])
 xcoord_xgboost_pred <-
-  predictions_df$datetime[which.max(prediction_xgboost_scaled_back[144:288]) + 143]
+  predictions_df$datetime[which.max(as.vector(prediction_xgboost[144:288])) + 143]
 
-# #neuralnet
-# ymax_neuralnet_pred = max(prediction_neuralnet_scaled_back[144:288])
-# xcoord_neuralnet_pred <-
-#   predictions_df$datetime[which.max(prediction_neuralnet_scaled_back[144:288]) + 143]
+#Deep learning Predicted Daily Peak
+ymax_deepLearning_pred = max(prediction_deepLearning[144:288])
+xcoord_deepLearning_pred <-
+  predictions_df$datetime[which.max(as.vector(prediction_deepLearning[144:288])) + 143]
+
+#Random Forest Predicted Daily Peak
+ymax_RF_pred = max(prediction_RF[144:288])
+xcoord_RF_pred <-
+  predictions_df$datetime[which.max(as.vector(prediction_RF[144:288])) + 143]
 
 #Test data peak
-ymax_test_pred = max(test_scaled_back)
+ymax_test_pred = max(test_set$fwts)
 xcoord_test_pred <-
-  predictions_df$datetime[which.max(test_scaled_back)]
-
+  predictions_df$datetime[which.max(test_set$fwts[144:288]) + 143]
 #******************************* visualize ***************************************#
 pl <-
   plot_ly(
     mode = 'lines+markers'
   ) %>%
   add_trace(
-    y =  ~ test_scaled_back,
+    y =  ~ test_set$fwts,
     x =  ~ predictions_df$datetime,
     mode = 'lines',
     type = 'scatter',
@@ -266,7 +274,7 @@ pl <-
     line = list(color = ("green"))
   ) %>%
   add_trace(
-    y =  ~ prediction_cubist_scaled_back,
+    y =  ~ prediction_cubist,
     x =  ~ predictions_df$datetime,
     mode = 'lines',
     type = 'scatter',
@@ -274,21 +282,29 @@ pl <-
     line = list(color = ("blue"))
   ) %>%
   add_trace(
-    y =  ~ prediction_xgboost_scaled_back,
+    y =  ~ prediction_xgboost,
     x =  ~ predictions_df$datetime,
     mode = 'lines',
     type = 'scatter',
     name = "XGBoost",
     line = list(color = ("orange"))
   ) %>%
-  # add_trace(
-  #   y =  ~ prediction_neuralnet_scaled_back,
-  #   x =  ~ predictions_df$datetime,
-  #   mode = 'lines',
-  #   type = 'scatter',
-  #   name = "Neural Network",
-  #   line = list(color = ("purple"))
-  # ) %>%
+  add_trace(
+    y =  ~ prediction_deepLearning,
+    x =  ~ predictions_df$datetime,
+    mode = 'lines',
+    type = 'scatter',
+    name = "Deep Learning",
+    line = list(color = ("purple"))
+  ) %>%
+  add_trace(
+    y =  ~ prediction_RF,
+    x =  ~ predictions_df$datetime,
+    mode = 'lines',
+    type = 'scatter',
+    name = "Random Forest",
+    line = list(color = ("yellow"))
+  ) %>%
   add_trace(
     x =  ~ xcoord_test_pred,
     y =  ~ ymax_test_pred,
@@ -319,6 +335,22 @@ pl <-
     mode = 'markers',
     type = 'scatter',
     name = paste("XGBoost Predicted Daily Peak",strftime(xcoord_xgboost_pred,format="%H:%M:%S",tz="UTC")),
+    marker = list(color = ("black"),size=9,symbol="square")
+  ) %>%
+  add_trace(
+    x =  ~ xcoord_deepLearning_pred,
+    y =  ~ ymax_deepLearning_pred,
+    mode = 'markers',
+    type = 'scatter',
+    name = paste("Deep Learning Predicted Daily Peak",strftime(xcoord_deepLearning_pred,format="%H:%M:%S",tz="UTC")),
+    marker = list(color = ("black"),size=9,symbol="square")
+  ) %>%
+  add_trace(
+    x =  ~ xcoord_RF_pred,
+    y =  ~ ymax_RF_pred,
+    mode = 'markers',
+    type = 'scatter',
+    name = paste("Random Forest Predicted Daily Peak",strftime(xcoord_RF_pred,format="%H:%M:%S",tz="UTC")),
     marker = list(color = ("black"),size=9,symbol="square")
   ) %>%
   layout(
