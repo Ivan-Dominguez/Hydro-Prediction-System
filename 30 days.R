@@ -246,12 +246,29 @@ xcoord_deepLearning_pred <-
 #Random Forest Predicted Daily Peak
 ymax_RF_pred = max(prediction_RF[144:288])
 xcoord_RF_pred <-
-  predictions_df$datetime[which.max(as.vector(prediction_RF[144:288])) + 143]
+  predictions_df$datetime[which.max(prediction_RF[144:288]) + 143]
+
+#Avg of all peak times
+prediction_avg = (prediction_xgboost + prediction_cubist + prediction_deepLearning +
+              prediction_RF + predictions_df$fwts_pred) / 5
+
+ymax_avg_pred = max(prediction_avg[144:288])
+xcoord_avg_pred <-
+  predictions_df$datetime[which.max(prediction_avg[144:288]) + 143]
+
+#Median of peak time
+xcoord_median_pred = median(c(xcoord_xgboost_pred, xcoord_cubist_pred, xcoord_deepLearning_pred,
+                              xcoord_RF_pred, xcoord_fwts_pred))
 
 #Test data peak
 ymax_test_pred = max(test_set$fwts)
 xcoord_test_pred <-
   predictions_df$datetime[which.max(test_set$fwts[144:288]) + 143]
+
+peak_times_list<-c(xcoord_xgboost_pred, xcoord_cubist_pred, xcoord_deepLearning_pred, xcoord_RF_pred,
+                   xcoord_avg_pred, xcoord_median_pred, xcoord_fwts_pred, xcoord_test_pred)
+
+
 #******************************* visualize ***************************************#
 pl <-
   plot_ly(

@@ -5,11 +5,11 @@ library (dplyr)
 library(caret)
 library(rpart.plot)
 library(reticulate)
-library(keras)
 library(readr)
 library(plotly)
 library(lubridate)
 library(stringr)
+library(keras)
 library(recipes)
 library(xgboost)
 library(h2o)
@@ -224,20 +224,16 @@ h2o.init()
       (predictions_df$fwts_pred * attribute_scale_fwts + attribute_centre_fwts) ^ 2
     
     #******************************* find peak values ***************************************#
-    #LSTM Predicted Daily Peak
-    ymax_fwts_pred = max(predictions_df$fwts_pred)
-    xcoord_fwts_pred <-
-      predictions_df$datetime[which.max(predictions_df$fwts_pred)]
-    
-    #Cubist Predicted Daily Peak
-    ymax_cubist_pred = max(prediction_cubist[144:288])
-    xcoord_cubist_pred <-
-      predictions_df$datetime[which.max(prediction_cubist[144:288]) + 143]
     
     #XGBoost Predicted Daily Peak
     ymax_xgboost_pred = max(prediction_xgboost[144:288])
     xcoord_xgboost_pred <-
       predictions_df$datetime[which.max(as.vector(prediction_xgboost[144:288])) + 143]
+    
+    #Cubist Predicted Daily Peak
+    ymax_cubist_pred = max(prediction_cubist[144:288])
+    xcoord_cubist_pred <-
+      predictions_df$datetime[which.max(prediction_cubist[144:288]) + 143]
     
     #Deep learning Predicted Daily Peak
     ymax_deepLearning_pred = max(prediction_deepLearning[144:288])
@@ -249,23 +245,41 @@ h2o.init()
     xcoord_RF_pred <-
       predictions_df$datetime[which.max(as.vector(prediction_RF[144:288])) + 143]
     
+    #LSTM Predicted Daily Peak
+    ymax_fwts_pred = max(predictions_df$fwts_pred)
+    xcoord_fwts_pred <-
+      predictions_df$datetime[which.max(predictions_df$fwts_pred)]
+    
+    #Avg of all peak times
+    prediction_avg = (prediction_xgboost + prediction_cubist + prediction_deepLearning +
+                        prediction_RF + predictions_df$fwts_pred) / 5
+    
+    ymax_avg_pred = max(prediction_avg[144:288])
+    xcoord_avg_pred <-
+      predictions_df$datetime[which.max(prediction_avg[144:288]) + 143]
+    
+    #Median of peak time
+    xcoord_median_pred = median(c(xcoord_xgboost_pred, xcoord_cubist_pred, xcoord_deepLearning_pred,
+                                  xcoord_RF_pred, xcoord_fwts_pred))
+    
     #Test data peak
     ymax_test_pred = max(test_set$fwts)
     xcoord_test_pred <-
       predictions_df$datetime[which.max(test_set$fwts[144:288]) + 143]
     
-    peak_list<-c(xcoord_xgboost_pred, xcoord_cubist_pred,xcoord_deepLearning_pred,
-                 xcoord_RF_pred, xcoord_fwts_pred, xcoord_test_pred)
+    peak_times_list<-c(xcoord_xgboost_pred, xcoord_cubist_pred, xcoord_deepLearning_pred, xcoord_RF_pred,
+                       xcoord_avg_pred, xcoord_median_pred, xcoord_fwts_pred, xcoord_test_pred)
 
-    return(peak_list)
+    return(peak_times_list)
 }
 #******************************* stats ***************************************#
 
-#prediction times dataframe
+#numbers of days to predict
 prediction_range<-2
 
-pred_times <-data.frame(matrix(nrow = prediction_range, ncol = 6))
-columns = c("xgboost", "cubist","deepLearning","rf", "LSTM", "real_peak")
+#prediction times dataframe
+pred_times <-data.frame(matrix(nrow = prediction_range, ncol = 8))
+columns = c("xgboost", "cubist","deepLearning","rf", "LSTM", "avg", "median", "real_peak")
 colnames(pred_times) <- columns
 
 #format columns as POSIXct
@@ -274,6 +288,8 @@ pred_times$cubist<-as.POSIXct(pred_times$cubist)
 pred_times$deepLearning<-as.POSIXct(pred_times$deepLearning)
 pred_times$rf<-as.POSIXct(pred_times$rf)
 pred_times$LSTM<-as.POSIXct(pred_times$LSTM)
+pred_times$avg<-as.POSIXct(pred_times$avg)
+pred_times$median<-as.POSIXct(pred_times$median)
 pred_times$real_peak<-as.POSIXct(pred_times$real_peak)
 
 #get prediction for 30 days
@@ -290,7 +306,9 @@ for (i in seq(1:prediction_range)){
   pred_times$deepLearning[i]<-pred_list[3]
   pred_times$rf[i]<-pred_list[4]
   pred_times$LSTM[i]<-pred_list[5]
-  pred_times$real_peak[i]<-pred_list[6]
+  pred_times$avg[i]<-pred_list[6]
+  pred_times$median[i]<-pred_list[7]
+  pred_times$real_peak[i]<-pred_list[8]
   
   start_date<-start_date + 1
 }
@@ -298,23 +316,24 @@ for (i in seq(1:prediction_range)){
 write.csv(pred_times, file = "pred_times_2017.csv")
 
 #compute time differences
-result_list <-data.frame(matrix(nrow = prediction_range, ncol = 5))
+colNumber<-ncol(pred_times)-1
+result_list <-data.frame(matrix(nrow = prediction_range, ncol = colNumber))
 columns = c("xgboost", "cubist","deepLearning","rf", "LSTM")
 colnames(result_list) <- columns
 
 time_limit <-15/60 # minutes/60
 
 for(row in 1:prediction_range){
-  for (column in 1:5){
+  for (column in 1:colNumber){
     
     pred_peak<-pred_times[row, column]
     real_peak<-pred_times$real_peak[row]
    
-    time_diff<-abs(pred_times[row, column] - pred_times$real_peak[row])
+    time_diff<-pred_times[row, column] - pred_times$real_peak[row]
 
-   if(time_diff < time_limit){
+   #if(time_diff < time_limit){
      result_list[row, column]<-as.numeric(time_diff)
-  }
+  #}
  }
 }
 
