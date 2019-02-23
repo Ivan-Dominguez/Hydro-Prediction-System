@@ -14,6 +14,8 @@ library(recipes)
 library(xgboost)
 library(h2o)
 
+h2o.init()
+
 setwd("~/Google Drive/Degree Project/Repository/Hydro-prediction-System/training_data")
 
 #load data
@@ -30,29 +32,23 @@ receipe_object_fwts <- recipe(data) %>%
 
 scaled_data <- bake(receipe_object_fwts,data)
 
-#Load FWTS Model
-fwts_lstm_model_lag288_mv <-
-  load_model_hdf5(
-    "/Users/ivan/Google Drive/Degree Project/Repository/Hydro-prediction-System/training_data/saved_models/Stateful_Lag288_FWTS_MV16_MODEL",
-    compile = TRUE
-  )
 
-h2o.init()
-
-
- accurrate.results<-function(prediction_date_str){
+ get_peaktimes_list<-function(prediction_date_str){
+   
+   h2o.removeAll()
+   k_clear_session()
 
     ######################################### set dates ############################################
     prediction_date <- as.Date(prediction_date_str)
     day_before<-prediction_date - 1
-    last_30days_date <- prediction_date - 2
+    end_date <- prediction_date - 4
     
     #dates to string
     day_before_str<-as.character.Date(day_before)
-    last_30days_date_str<-as.character.Date(last_30days_date)
+    end_date_str<-as.character.Date(end_date)
     
     #boundaries
-    training_beginning<-data %>% filter(str_detect(datetime, last_30days_date_str))
+    training_beginning<-data %>% filter(str_detect(datetime, end_date_str))
     training_end<-data %>% filter(str_detect(datetime, day_before_str))
     
     start<-training_beginning$X[1]
@@ -117,6 +113,13 @@ h2o.init()
     )
     
     prediction_RF = as.vector(predict(RF_model, newdata = as.h2o(test_set[-1])))
+    
+    
+    #Load FWTS Model
+    fwts_lstm_model_lag288_mv <-
+      load_model_hdf5(
+        "/Users/ivan/Google Drive/Degree Project/Repository/Hydro-prediction-System/training_data/saved_models/Stateful_Lag288_FWTS_MV16_MODEL",
+        compile = TRUE)
     
     
     #********************************************************#
@@ -263,7 +266,7 @@ h2o.init()
                                   xcoord_RF_pred, xcoord_fwts_pred))
     
     #Test data peak
-    ymax_test_pred = max(test_set$fwts)
+    ymax_test_pred = max(test_set$fwts[144:288])
     xcoord_test_pred <-
       predictions_df$datetime[which.max(test_set$fwts[144:288]) + 143]
     
@@ -275,7 +278,7 @@ h2o.init()
 #******************************* stats ***************************************#
 
 #numbers of days to predict
-prediction_range<-2
+prediction_range<-365
 
 #prediction times dataframe
 pred_times <-data.frame(matrix(nrow = prediction_range, ncol = 8))
@@ -292,14 +295,15 @@ pred_times$avg<-as.POSIXct(pred_times$avg)
 pred_times$median<-as.POSIXct(pred_times$median)
 pred_times$real_peak<-as.POSIXct(pred_times$real_peak)
 
-#get prediction for 30 days
+#get predictions list
 start_date <- as.Date("2017-01-01")
 
 for (i in seq(1:prediction_range)){
   
   start_date_str<-as.character.Date(start_date)
+  print(paste("Processing:", start_date_str))
   
-  pred_list<- accurrate.results(start_date_str)
+  pred_list<- get_peaktimes_list(start_date_str)
   
   pred_times$xgboost[i]<-pred_list[1]
   pred_times$cubist[i]<-pred_list[2]
@@ -313,30 +317,30 @@ for (i in seq(1:prediction_range)){
   start_date<-start_date + 1
 }
 
-write.csv(pred_times, file = "pred_times_2017.csv")
+write.csv(pred_times, file = "pred_times_2017_4days.csv")
 
 #compute time differences
 colNumber<-ncol(pred_times)-1
 result_list <-data.frame(matrix(nrow = prediction_range, ncol = colNumber))
-columns = c("xgboost", "cubist","deepLearning","rf", "LSTM")
+columns = c("xgboost", "cubist","deepLearning","rf", "LSTM", "avg", "median")
 colnames(result_list) <- columns
 
-time_limit <-15/60 # minutes/60
+limit_in_minutes <-30
 
 for(row in 1:prediction_range){
   for (column in 1:colNumber){
     
     pred_peak<-pred_times[row, column]
     real_peak<-pred_times$real_peak[row]
-   
-    time_diff<-pred_times[row, column] - pred_times$real_peak[row]
-
-   #if(time_diff < time_limit){
-     result_list[row, column]<-as.numeric(time_diff)
-  #}
- }
+    
+    time_diff<-difftime(pred_times$real_peak[row], pred_times[row, column], units="mins" )
+    time_diff<- as.numeric(time_diff)
+    
+    if(abs(time_diff) <= limit_in_minutes){
+      result_list[row, column]<-time_diff
+    }
+  }
 }
 
-write.csv(result_list, file = "result_list.csv")
-
-
+na_count <-sapply(result_list, function(x) sum(length(which(is.na(x)))))
+na_count

@@ -1,37 +1,6 @@
-library(Cubist)
-library(caTools)
-library(rpart)
-library (dplyr)
-library(caret)
-library(rpart.plot)
-library(reticulate)
-library(keras)
-library(readr)
-library(plotly)
-library(lubridate)
-library(stringr)
-library(recipes)
-library(h2o)
-library(xgboost)
 
-setwd("~/Google Drive/Degree Project/Repository/Hydro-prediction-System/training_data")
-
-#load data
-data <- read.csv("trainingFile_fwts.csv", header=TRUE, sep=",", na.strings=c("NA", "NULL"),stringsAsFactors=FALSE)
-data$pres = as.numeric(data$pres)
-data$pres[is.na(data$pres)] <- 0
-
-#scale data
-receipe_object_fwts <- recipe(data) %>%
-  step_sqrt("fwts") %>%
-  step_center("fwts") %>%
-  step_scale("fwts") %>%
-  prep()
-
-scaled_data <- bake(receipe_object_fwts,data)
 
 h2o.init()
-
 
 
 ######################################### set dates ############################################
@@ -43,7 +12,7 @@ prediction_date_str<-"2017-01-17"
 
 prediction_date <- as.Date(prediction_date_str)
 day_before<-prediction_date - 1
-last_30days_date <- prediction_date - 30
+last_30days_date <- prediction_date - 365
 
 #dates to string
 day_before_str<-as.character.Date(day_before)
@@ -86,11 +55,12 @@ cubist_model<-cubist(x = training_set[,-1], y = training_set$fwts, committees = 
 prediction_cubist <- predict(cubist_model, test_set)
 
 #xgboost
-xgboost_model <- xgboost(data = as.matrix(training_set[-1]), label = training_set$fwts, nrounds = 150, max_depth = 3,
-                        eta = 0.4, gamma = 0, subsample = 0.75, colsample_bytree = 0.8, rate_drop = 0.01,
-                        skip_drop = 0.95, min_child_weight = 1)
+xgboost_model <- h2o.xgboost(y='fwts',
+                             x=c('temp','dew','hum','wspd','vis','pres','mon','tue','wed','thu','fri','sat','sun','sint','cost'),
+                             training_frame=as.h2o(training_set)
+                             )
 
-prediction_xgboost <-as.vector(predict(xgboost_model, newdata = as.matrix(test_set[-1])))
+prediction_xgboost <-as.vector(predict(xgboost_model, newdata = as.h2o(test_set[-1])))
 
 #Deep learning
 deepLearning_model <- h2o.deeplearning(y='fwts',
@@ -257,7 +227,7 @@ xcoord_RF_pred <-
 
 #Avg of all peak times
 prediction_avg = (prediction_xgboost + prediction_cubist + prediction_deepLearning +
-              prediction_RF + predictions_df$fwts_pred) / 5
+                    prediction_RF + predictions_df$fwts_pred) / 5
 
 ymax_avg_pred = max(prediction_avg[144:288])
 xcoord_avg_pred <-
