@@ -39,7 +39,7 @@ h2o.init()
 h2o.removeAll()
 k_clear_session()
 
-prediction_date_str<-"2017-01-17"
+prediction_date_str<-"2017-01-01"
 
 prediction_date <- as.Date(prediction_date_str)
 day_before<-prediction_date - 1
@@ -79,6 +79,19 @@ if(nrow(test_set) < 288){
   
 }
 
+#fill missing rows copies of the last row
+if(nrow(scaled_test_set) < 288){
+  rows_needed<-288 - nrow(scaled_test_set)
+  last_row<-test_set[nrow(scaled_test_set),]
+  new_row<-data.frame(last_row)
+  #fwts=0,sint=0,cost=0,temp=0,dew=0,hum=0,wspd=0,vis=0,pres=0,mon=0,tue=wed   thu   fri   sat   sun
+  for(i in seq(1:rows_needed)){
+    
+    scaled_test_set <- rbind(scaled_test_set,new_row)
+  }
+  
+}
+
 ######################################### Models ############################################
 
 #Cubist
@@ -93,15 +106,21 @@ xgboost_model <- xgboost(data = as.matrix(training_set[-1]), label = training_se
 prediction_xgboost <-as.vector(predict(xgboost_model, newdata = as.matrix(test_set[-1])))
 
 #Deep learning
-deepLearning_model <- h2o.deeplearning(y='fwts',
-                                       x=c('temp','dew','hum','wspd','vis','pres','mon','tue','wed','thu','fri','sat','sun','sint','cost'),
-                                       activation = 'Rectifier',
-                                       training_frame=as.h2o(training_set),
-                                       hidden=c(10,10),
-                                       epochs=100,
-                                       train_samples_per_iteration=-2
-)
+scale_training_set<-training_set
+scale_training_set[1]<-scale(training_set[1])
+scale_scale=attr(scale(training_set[1]), 'scaled:scale')
+scale_center=attr(scale(training_set[1]), 'scaled:center')
+
+deepLearning_model<-h2o.deeplearning(y='fwts',
+                                     x=c('temp','dew','hum','wspd','vis','pres','mon','tue','wed','thu','fri','sat','sun','sint','cost'),
+                                     activation = 'Rectifier',
+                                     training_frame=as.h2o(as.matrix(scale_training_set)),
+                                     hidden=c(10,10),
+                                     epochs=100,
+                                     train_samples_per_iteration=-2)
+
 prediction_deepLearning <- as.vector(predict(deepLearning_model, newdata=as.h2o(test_set[-1])))
+prediction_deepLearning <-prediction_deepLearning * scale_scale+scale_center
 
 #Random Forest
 variables=c('temp','dew','hum','wspd','vis','pres','mon','tue','wed','thu','fri','sat','sun','sint','cost')
@@ -231,9 +250,9 @@ predictions_df$fwts_pred <-
 
 #******************************* find peak values ***************************************#
 #LSTM Predicted Daily Peak
-ymax_fwts_pred = max(predictions_df$fwts_pred)
+ymax_fwts_pred = max(predictions_df$fwts_pred[144:288])
 xcoord_fwts_pred <-
-  predictions_df$datetime[which.max(predictions_df$fwts_pred)]
+  predictions_df$datetime[which.max(predictions_df$fwts_pred[144:288]) + 143]
 
 #Cubist Predicted Daily Peak
 ymax_cubist_pred = max(prediction_cubist[144:288])
@@ -263,9 +282,15 @@ ymax_avg_pred = max(prediction_avg[144:288])
 xcoord_avg_pred <-
   predictions_df$datetime[which.max(prediction_avg[144:288]) + 143]
 
+
 #Median of peak time
-xcoord_median_pred = median(c(xcoord_xgboost_pred, xcoord_cubist_pred, xcoord_deepLearning_pred,
-                              xcoord_RF_pred, xcoord_fwts_pred))
+xcoord_median_pred <- strptime(prediction_date, "%Y-%m-%d")-mean(difftime(
+                      paste(prediction_date, "00:00:00", sep=" "),
+                      c(xcoord_xgboost_pred, xcoord_cubist_pred, xcoord_deepLearning_pred,
+                        xcoord_RF_pred, xcoord_fwts_pred),
+                      units = "secs"))
+
+xcoord_median_pred <-as.character(xcoord_median_pred)
 
 #Test data peak
 ymax_test_pred = max(test_set$fwts[144:288])
@@ -376,6 +401,14 @@ pl <-
     type = 'scatter',
     name = paste("Random Forest Predicted Daily Peak",strftime(xcoord_RF_pred,format="%H:%M:%S",tz="UTC")),
     marker = list(color = ("black"),size=9,symbol="square")
+  ) %>%
+  add_trace(
+    x =  ~ xcoord_median_pred,
+    y =  ~ 58000,
+    mode = 'markers',
+    type = 'scatter',
+    name = paste("MEDIAN",strftime(xcoord_median_pred,format="%H:%M:%S",tz="UTC")),
+    marker = list(color = ("red"),size=9,symbol="square")
   ) %>%
   layout(
     title = paste('prediction for', predictionDate),

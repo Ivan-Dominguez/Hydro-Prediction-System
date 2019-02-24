@@ -3,19 +3,38 @@
 setwd("~/Google Drive/Degree Project/Repository/Hydro-prediction-System/training_data")
 
 #load data
-results_file_6days <- read.csv("pred_times_2017_6days.csv", header=TRUE, sep=",", na.strings=c("NA", "NULL"),stringsAsFactors=FALSE)
-results_file_7days <- read.csv("pred_times_2017_7days.csv", header=TRUE, sep=",", na.strings=c("NA", "NULL"),stringsAsFactors=FALSE)
-results_file_1year <- read.csv("pred_times_2017_1year.csv", header=TRUE, sep=",", na.strings=c("NA", "NULL"),stringsAsFactors=FALSE)
+as.data.frame(results_file)
 
+results_fileT2days <- read.csv("pred_times_2017_2days.csv", header=TRUE, sep=",", na.strings=c("NA", "NULL"),stringsAsFactors=FALSE)
+results_fileT3days <- read.csv("pred_times_2017_3days.csv", header=TRUE, sep=",", na.strings=c("NA", "NULL"),stringsAsFactors=FALSE)
+results_fileT4days <- read.csv("pred_times_2017_4days.csv", header=TRUE, sep=",", na.strings=c("NA", "NULL"),stringsAsFactors=FALSE)
+results_fileT5days <- read.csv("pred_times_2017_5days.csv", header=TRUE, sep=",", na.strings=c("NA", "NULL"),stringsAsFactors=FALSE)
+results_fileT6days <- read.csv("pred_times_2017_6days.csv", header=TRUE, sep=",", na.strings=c("NA", "NULL"),stringsAsFactors=FALSE)
+week <- read.csv("pred_times_2017_7days.csv", header=TRUE, sep=",", na.strings=c("NA", "NULL"),stringsAsFactors=FALSE)
+month <- read.csv("pred_times_2017_30days.csv", header=TRUE, sep=",", na.strings=c("NA", "NULL"),stringsAsFactors=FALSE)
+
+results_fileT1year <- read.csv("pred_times_2017_1year.csv", header=TRUE, sep=",", na.strings=c("NA", "NULL"),stringsAsFactors=FALSE)
+
+
+
+#correct real peak column
+results_fileT2days$real_peak <-results_fileT6days$real_peak
+results_fileT3days$real_peak <-results_fileT6days$real_peak
+results_fileT4days$real_peak <-results_fileT6days$real_peak
+results_fileT5days$real_peak <-results_fileT6days$real_peak
+results_fileT6days$real_peak <-results_fileT6days$real_peak
+results_fileT7days$real_peak<-results_fileT6days$real_peak
+results_fileT1year$real_peak <-results_fileT6days$real_peak
+  
 #compute time differences
 colNumber<-ncol(pred_times)-1
 result_list <-data.frame(matrix(nrow = 365, ncol = 7))
 columns = c("xgboost", "cubist","deepLearning","rf", "LSTM", "avg", "median")
 colnames(result_list) <- columns
 
-limit_in_minutes <-25
+limit_in_minutes <-35
 
-pred_times<-results_file_6days[-1]
+pred_times<-results_fileT6days[-1]
 
 for(row in 1:365){
   for (column in 1:7){
@@ -32,7 +51,6 @@ for(row in 1:365){
   }
 }
 
-#write.csv(result_list, file = "result_list_2017_6days.csv")
 
-na_count <-sapply(result_list, function(x) sum(length(which(is.na(x)))))
-na_count
+na_count_1year <-sapply(result_list, function(x) sum(length(which(is.na(x)))))
+na_count_1year
