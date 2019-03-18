@@ -28,21 +28,18 @@ server <- function(input, output) {
  
   #plot
   output$plot <- 
-    
     renderPlotly({
-      
-      #waiting bar
+      #progress bar
       withProgress(message = 'Calculation in progress',
                    detail = 'This may take a while...', value = 0, {
                      
                      #wait until Run button is clicked
-                     input$run_btn
-                     isolate(
-                       make_predictions(input$date_txt)
-                     )
+                     if(input$run_btn > 0)
+                       {
+                         isolate(make_predictions(input$date_txt))
+                       }
                      
       })
-    
     })
 }
 
