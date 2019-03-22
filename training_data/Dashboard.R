@@ -19,6 +19,20 @@ ui <- dashboardPage(
   dashboardBody(
     tabItem(tabName = "first", h2("Daily Prediction")),
     fluidRow(box(plotlyOutput("plot"), width=15, height=500))
+  ),
+  
+  tags$head(
+    tags$style(
+      HTML(".shiny-notification {
+           height: 100px;
+           width: 800px;
+           position:fixed;
+           top: calc(50% - 50px);;
+           left: calc(50% - 400px);;
+           }
+           "
+      )
+    )
   )
 )
 
@@ -30,18 +44,23 @@ server <- function(input, output) {
   output$plot <- 
     renderPlotly({
       #progress bar
-      withProgress(message = 'Calculation in progress',
-                   detail = 'This may take a while...', value = 0, {
+      withProgress(message = 'Calculation in progress.',
+                   detail = ' This may take a while...', value = 0, {
                      
                      #wait until Run button is clicked
                      if(input$run_btn > 0)
                        {
-                         isolate(make_predictions(input$date_txt))
+                         isolate(
+
+                           predictions_list<- make_predictions(input$date_txt))
+                          
+                           daily_plot(predictions_list, input$date_txt)
                        }
                      
-      })
+                    })
     })
 }
+
 
 shinyApp(ui, server)
 

@@ -1,18 +1,3 @@
-library(Cubist)
-library(caTools)
-library(rpart)
-library (dplyr)
-library(caret)
-library(rpart.plot)
-library(reticulate)
-library(keras)
-library(readr)
-library(plotly)
-library(lubridate)
-library(stringr)
-library(recipes)
-library(h2o)
-library(xgboost)
 
 setwd("~/Google Drive/Degree Project/Repository/Hydro-prediction-System/training_data")
 
@@ -33,8 +18,9 @@ scaled_data <- bake(receipe_object_fwts,data)
 #initialize H2O
 h2o.init()
 
-#load function
+#load functions
 source('make_predictions_fcn.R')
+source('daily_plot_fcn.R')
 
 #open dashboard in browser
 runApp('Dashboard.R', launch.browser = TRUE)

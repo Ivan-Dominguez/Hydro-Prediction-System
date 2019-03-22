@@ -1,3 +1,19 @@
+library(Cubist)
+library(caTools)
+library(rpart)
+library (dplyr)
+library(caret)
+library(rpart.plot)
+library(reticulate)
+library(keras)
+library(readr)
+library(plotly)
+library(lubridate)
+library(stringr)
+library(recipes)
+library(h2o)
+library(xgboost)
+
 
 make_predictions<-function(date_str){
   
@@ -216,8 +232,8 @@ make_predictions<-function(date_str){
   
   #******************************* find peak values ***************************************#
   #LSTM Predicted Daily Peak
-  ymax_fwts_pred = max(predictions_df$fwts_pred[144:288])
-  xcoord_fwts_pred <-
+  ymax_LSTM_pred = max(predictions_df$fwts_pred[144:288])
+  xcoord_LSTM_pred <-
     predictions_df$datetime[which.max(predictions_df$fwts_pred[144:288]) + 143]
   
   #Cubist Predicted Daily Peak
@@ -240,156 +256,30 @@ make_predictions<-function(date_str){
   xcoord_RF_pred <-
     predictions_df$datetime[which.max(prediction_RF[144:288]) + 143]
   
-  #Avg of all peak times
-  prediction_avg = (prediction_xgboost + prediction_cubist + prediction_deepLearning +
-                      prediction_RF + predictions_df$fwts_pred) / 5
-  
-  ymax_avg_pred = max(prediction_avg[144:288])
-  xcoord_avg_pred <-
-    predictions_df$datetime[which.max(prediction_avg[144:288]) + 143]
-  
-  
-  #Median of peak time
-  xcoord_median_pred <- strptime(prediction_date, "%Y-%m-%d")-mean(difftime(
+  #average of peak times
+  xcoord_avg_pred <- strptime(prediction_date, "%Y-%m-%d")-mean(difftime(
     paste(prediction_date, "00:00:00", sep=" "),
     c(xcoord_xgboost_pred, xcoord_cubist_pred, xcoord_deepLearning_pred,
-      xcoord_RF_pred, xcoord_fwts_pred),
+      xcoord_RF_pred, xcoord_LSTM_pred),
     units = "secs"))
   
-  xcoord_median_pred <-as.character(xcoord_median_pred)
+  #xcoord_avg_pred <-as.character(xcoord_avg_pred)
   
   #Test data peak
   ymax_test_pred = max(test_set$fwts[144:288])
   xcoord_test_pred <-
     predictions_df$datetime[which.max(test_set$fwts[144:288]) + 143]
   
-  peak_times_list<-c(xcoord_xgboost_pred, xcoord_cubist_pred, xcoord_deepLearning_pred, xcoord_RF_pred,
-                     xcoord_avg_pred, xcoord_median_pred, xcoord_fwts_pred, xcoord_test_pred)
+  xcoord_list<-c(xcoord_test_pred, xcoord_LSTM_pred, xcoord_cubist_pred, xcoord_xgboost_pred,
+                 xcoord_deepLearning_pred, xcoord_RF_pred, xcoord_avg_pred)
   
-  list_of_preditcions_df<-data.frame(test_set$fwts, predictions_df$fwts_pred,prediction_cubist,prediction_xgboost,
-                                     prediction_deepLearning,prediction_RF,peak_times_list )
+  ymax_list<-c(ymax_test_pred, ymax_LSTM_pred, ymax_cubist_pred, ymax_xgboost_pred,
+               ymax_deepLearning_pred, ymax_RF_pred)
   
-  #******************************* visualize ***************************************#
-  pl <-
-    plot_ly(
-      mode = 'lines+markers'
-    ) %>%
-    add_trace(
-      y =  ~ test_set$fwts,
-      x =  ~ predictions_df$datetime,
-      mode = 'lines',
-      type = 'scatter',
-      name = "Test Data",
-      line = list(color = ("red"))
-    ) %>%
-    add_trace(
-      y =  ~ predictions_df$fwts_pred,
-      x =  ~ predictions_df$datetime,
-      mode = 'lines',
-      type = 'scatter',
-      name = "LSTM",
-      line = list(color = ("green"))
-    ) %>%
-    add_trace(
-      y =  ~ prediction_cubist,
-      x =  ~ predictions_df$datetime,
-      mode = 'lines',
-      type = 'scatter',
-      name = "Cubist",
-      line = list(color = ("blue"))
-    ) %>%
-    add_trace(
-      y =  ~ prediction_xgboost,
-      x =  ~ predictions_df$datetime,
-      mode = 'lines',
-      type = 'scatter',
-      name = "XGBoost",
-      line = list(color = ("orange"))
-    ) %>%
-    add_trace(
-      y =  ~ prediction_deepLearning,
-      x =  ~ predictions_df$datetime,
-      mode = 'lines',
-      type = 'scatter',
-      name = "Deep Learning",
-      line = list(color = ("purple"))
-    ) %>%
-    add_trace(
-      y =  ~ prediction_RF,
-      x =  ~ predictions_df$datetime,
-      mode = 'lines',
-      type = 'scatter',
-      name = "Random Forest",
-      line = list(color = ("yellow"))
-    ) %>%
-    add_trace(
-      x =  ~ xcoord_test_pred,
-      y =  ~ ymax_test_pred,
-      mode = 'markers',
-      type = 'scatter',
-      name = paste("Real daily Peak", strftime(xcoord_test_pred,format="%H:%M:%S",tz="UTC")),
-      marker = list(color = ("black"),size=9,symbol="triangle-up")
-    ) %>%
-    add_trace(
-      x =  ~ xcoord_fwts_pred,
-      y =  ~ ymax_fwts_pred,
-      mode = 'markers',
-      type = 'scatter',
-      name = paste("LSTM Predicted Daily Peak", strftime(xcoord_fwts_pred,format="%H:%M:%S",tz="UTC")),
-      marker = list(color = ("yellow"),size=9,symbol="circle")
-    ) %>%
-    add_trace(
-      x =  ~ xcoord_cubist_pred,
-      y =  ~ ymax_cubist_pred,
-      mode = 'markers',
-      type = 'scatter',
-      name = paste("Cubist Predicted Daily Peak", strftime(xcoord_cubist_pred,format="%H:%M:%S",tz="UTC")),
-      marker = list(color = ("orange"),size=9,symbol="square")
-    ) %>%
-    add_trace(
-      x =  ~ xcoord_xgboost_pred,
-      y =  ~ ymax_xgboost_pred,
-      mode = 'markers',
-      type = 'scatter',
-      name = paste("XGBoost Predicted Daily Peak",strftime(xcoord_xgboost_pred,format="%H:%M:%S",tz="UTC")),
-      marker = list(color = ("black"),size=9,symbol="square")
-    ) %>%
-    add_trace(
-      x =  ~ xcoord_deepLearning_pred,
-      y =  ~ ymax_deepLearning_pred,
-      mode = 'markers',
-      type = 'scatter',
-      name = paste("Deep Learning Predicted Daily Peak",strftime(xcoord_deepLearning_pred,format="%H:%M:%S",tz="UTC")),
-      marker = list(color = ("black"),size=9,symbol="square")
-    ) %>%
-    add_trace(
-      x =  ~ xcoord_RF_pred,
-      y =  ~ ymax_RF_pred,
-      mode = 'markers',
-      type = 'scatter',
-      name = paste("Random Forest Predicted Daily Peak",strftime(xcoord_RF_pred,format="%H:%M:%S",tz="UTC")),
-      marker = list(color = ("black"),size=9,symbol="square")
-    ) %>%
-    add_trace(
-      x =  ~ xcoord_median_pred,
-      y =  ~ 58000,
-      mode = 'markers',
-      type = 'scatter',
-      name = paste("MEDIAN",strftime(xcoord_median_pred,format="%H:%M:%S",tz="UTC")),
-      marker = list(color = ("red"),size=9,symbol="square")
-    ) %>%
-    layout(
-      title = paste('prediction for', predictionDate),
-      xaxis = list(
-        title = 'Time',
-        autotick = TRUE,
-        showticklabels = TRUE
-      ),
-      yaxis = list(title = "Power Consumption")
-    )
-  
-  pl
+  list_of_preditcions<-list("hours"=predictions_df$datetime,"test"=test_set$fwts,"LSTM"=predictions_df$fwts_pred, 
+                               "cubist"= prediction_cubist,"xgboost"=prediction_xgboost,"DL"=prediction_deepLearning,
+                               "RF"=prediction_RF,"xcoord_list"=xcoord_list, "ymax_list"=ymax_list)
   
   
-  return(pl)
+  return(list_of_preditcions)
 }

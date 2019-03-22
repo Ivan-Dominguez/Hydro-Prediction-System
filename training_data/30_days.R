@@ -250,8 +250,8 @@ predictions_df$fwts_pred <-
 
 #******************************* find peak values ***************************************#
 #LSTM Predicted Daily Peak
-ymax_fwts_pred = max(predictions_df$fwts_pred[144:288])
-xcoord_fwts_pred <-
+ymax_LSTM_pred = max(predictions_df$fwts_pred[144:288])
+xcoord_LSTM_pred <-
   predictions_df$datetime[which.max(predictions_df$fwts_pred[144:288]) + 143]
 
 #Cubist Predicted Daily Peak
@@ -296,6 +296,19 @@ xcoord_median_pred <-as.character(xcoord_median_pred)
 ymax_test_pred = max(test_set$fwts[144:288])
 xcoord_test_pred <-
   predictions_df$datetime[which.max(test_set$fwts[144:288]) + 143]
+
+
+
+xcoord_list<-c(xcoord_test_pred,xcoord_LSTM_pred, xcoord_cubist_pred, xcoord_xgboost_pred,
+               xcoord_deepLearning_pred, xcoord_RF_pred, xcoord_avg_pred)
+
+ymax_list<-c(ymax_test_pred,ymax_LSTM_pred,ymax_cubist_pred,ymax_xgboost_pred,
+             ymax_deepLearning_pred,ymax_RF_pred)
+
+list_of_preditcions<-list("hours"=predictions_df$datetime,"test"=test_set$fwts,"LSTM"=predictions_df$fwts_pred, 
+                             "cubist"= prediction_cubist,"xgboost"=prediction_xgboost,"DL"=prediction_deepLearning,
+                             "RF"=prediction_RF,"xcoord_list"=xcoord_list, "ymax_list"=ymax_list)
+
 
 #******************************* visualize ***************************************#
 pl <-
