@@ -1,5 +1,10 @@
+library (dplyr)
+library(recipes)
 
 setwd("~/Google Drive/Degree Project/Repository/Hydro-prediction-System/training_data")
+
+#set time zone
+Sys.setenv(TZ='UTC')
 
 #load data
 data <- read.csv("trainingFile_fwts.csv", header=TRUE, sep=",", na.strings=c("NA", "NULL"),stringsAsFactors=FALSE)
@@ -15,8 +20,7 @@ receipe_object_fwts <- recipe(data) %>%
 
 scaled_data <- bake(receipe_object_fwts,data)
 
-#initialize H2O
-h2o.init()
+
 
 #load functions
 source('make_predictions_fcn.R')

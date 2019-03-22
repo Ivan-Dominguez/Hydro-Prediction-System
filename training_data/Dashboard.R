@@ -11,7 +11,7 @@ ui <- dashboardPage(
   dashboardSidebar(
     width = 200,
     menuItem("Dashboard", tabName = "dashboardTab", icon = icon("dashboard")),
-    textInput("date_txt", "Enter date (YYYY-MM-DD)", "2018-02-05"),
+    textInput("date_txt", "Enter date (YYYY-MM-DD)", "2018-04-02"),
     actionButton("run_btn","Run Prediction"),
     p("Run prediction for the entered date")
   ),

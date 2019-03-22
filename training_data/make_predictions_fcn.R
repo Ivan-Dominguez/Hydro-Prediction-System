@@ -10,9 +10,11 @@ library(readr)
 library(plotly)
 library(lubridate)
 library(stringr)
-library(recipes)
 library(h2o)
 library(xgboost)
+
+#initialize H2O
+h2o.init()
 
 
 make_predictions<-function(date_str){

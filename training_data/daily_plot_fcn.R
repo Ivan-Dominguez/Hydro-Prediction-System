@@ -102,7 +102,7 @@ daily_plot<-function(pred_list, predictionDate){
     ) %>%
     add_trace(
       x =  ~ pred_list$xcoord_list[7],
-      y =  ~ 67000,
+      y =  ~ 65000,
       mode = 'markers',
       type = 'scatter',
       name = paste("AVG",strftime(pred_list$xcoord_list[7],format="%H:%M:%S",tz="UTC")),
