@@ -5,28 +5,12 @@ daily_plot<-function(pred_list, predictionDate){
       mode = 'lines+markers'
     ) %>%
     add_trace(
-      y =  ~ pred_list$test,
-      x =  ~ pred_list$hours,
-      mode = 'lines',
-      type = 'scatter',
-      name = "Test Data",
-      line = list(color = ("red"))
-    ) %>%
-    add_trace(
-      y =  ~ pred_list$LSTM,
-      x =  ~ pred_list$hours,
-      mode = 'lines',
-      type = 'scatter',
-      name = "LSTM",
-      line = list(color = ("green"))
-    ) %>%
-    add_trace(
       y =  ~ pred_list$cubist,
       x =  ~ pred_list$hours,
       mode = 'lines',
       type = 'scatter',
       name = "Cubist",
-      line = list(color = ("blue"))
+      line = list(color = ("pink"))
     ) %>%
     add_trace(
       y =  ~ pred_list$xgboost,
@@ -34,7 +18,7 @@ daily_plot<-function(pred_list, predictionDate){
       mode = 'lines',
       type = 'scatter',
       name = "XGBoost",
-      line = list(color = ("orange"))
+      line = list(color = ("blue"))
     ) %>%
     add_trace(
       y =  ~ pred_list$DL,
@@ -42,7 +26,7 @@ daily_plot<-function(pred_list, predictionDate){
       mode = 'lines',
       type = 'scatter',
       name = "Deep Learning",
-      line = list(color = ("purple"))
+      line = list(color = ("orange"))
     ) %>%
     add_trace(
       y =  ~ pred_list$RF,
@@ -50,62 +34,78 @@ daily_plot<-function(pred_list, predictionDate){
       mode = 'lines',
       type = 'scatter',
       name = "Random Forest",
-      line = list(color = ("yellow"))
+      line = list(color = ("green"))
     ) %>%
+  add_trace(
+    y =  ~ pred_list$AVG,
+    x =  ~ pred_list$hours,
+    mode = 'lines',
+    type = 'scatter',
+    name = "AVG",
+    line = list(color = ("yellow"))
+    ) %>%
+  add_trace(
+    y =  ~ pred_list$test,
+    x =  ~ pred_list$hours,
+    mode = 'lines',
+    type = 'scatter',
+    name = "Test Data",
+    line = list(color = ("black"))
+  ) %>%
     add_trace(
-      x =  ~ pred_list$xcoord_list[1],
-      y =  ~ pred_list$ymax_list[1],
+      x =  ~ pred_list$xcoord_list$cubist,
+      y =  ~ pred_list$ymax_list$cubist,
       mode = 'markers',
       type = 'scatter',
-      name = paste("Real daily Peak", strftime(pred_list$xcoord_list[1],format="%H:%M:%S",tz="UTC")),
-      marker = list(color = ("black"),size=11,symbol="triangle-up")
+      name = paste("Cubist Predicted Peak", strftime(pred_list$xcoord_list$cubist,format="%H:%M:%S",tz="UTC")),
+      marker = list(color = ("black"),size=9,symbol="circle")
     ) %>%
     add_trace(
-      x =  ~ pred_list$xcoord_list[2],
-      y =  ~ pred_list$ymax_list[2],
+      x =  ~ pred_list$xcoord_list$xgboost,
+      y =  ~ pred_list$ymax_list$xgboost,
       mode = 'markers',
       type = 'scatter',
-      name = paste("LSTM Predicted Daily Peak", strftime(pred_list$xcoord_list[2],format="%H:%M:%S",tz="UTC")),
-      marker = list(color = ("black"),size=9,symbol="square")
+      name = paste("XGBoost Predicted Peak",strftime(pred_list$xcoord_list$xgboost,format="%H:%M:%S",tz="UTC")),
+      marker = list(color = ("black"),size=9,symbol="circle")
     ) %>%
     add_trace(
-      x =  ~ pred_list$xcoord_list[3],
-      y =  ~ pred_list$ymax_list[3],
+      x =  ~ pred_list$xcoord_list$DL,
+      y =  ~ pred_list$ymax_list$DL,
       mode = 'markers',
       type = 'scatter',
-      name = paste("Cubist Predicted Daily Peak", strftime(pred_list$xcoord_list[3],format="%H:%M:%S",tz="UTC")),
-      marker = list(color = ("black"),size=9,symbol="square")
+      name = paste("Deep Learning Predicted Peak",strftime(pred_list$xcoord_list$DL,format="%H:%M:%S",tz="UTC")),
+      marker = list(color = ("black"),size=9,symbol="circle")
     ) %>%
     add_trace(
-      x =  ~ pred_list$xcoord_list[4],
-      y =  ~ pred_list$ymax_list[4],
+      x =  ~ pred_list$xcoord_list$RF,
+      y =  ~ pred_list$ymax_list$RF,
       mode = 'markers',
       type = 'scatter',
-      name = paste("XGBoost Predicted Daily Peak",strftime(pred_list$xcoord_list[4],format="%H:%M:%S",tz="UTC")),
-      marker = list(color = ("black"),size=9,symbol="square")
+      name = paste("Random Forest Predicted Peak",strftime(pred_list$xcoord_list$RF,format="%H:%M:%S",tz="UTC")),
+      marker = list(color = ("black"),size=9,symbol="circle")
     ) %>%
     add_trace(
-      x =  ~ pred_list$xcoord_list[5],
-      y =  ~ pred_list$ymax_list[5],
+      x =  ~ pred_list$xcoord_list$avg,
+      y =  ~ pred_list$ymax_list$avg,
       mode = 'markers',
       type = 'scatter',
-      name = paste("Deep Learning Predicted Daily Peak",strftime(pred_list$xcoord_list[5],format="%H:%M:%S",tz="UTC")),
-      marker = list(color = ("black"),size=9,symbol="square")
+      name = paste("AVG Predicted Peak", strftime(pred_list$xcoord_list$avg,format="%H:%M:%S",tz="UTC")),
+      marker = list(color = ("black"),size=9,symbol="circle")
     ) %>%
+  add_trace(
+    x =  ~ pred_list$xcoord_list$test,
+    y =  ~ pred_list$ymax_list$test,
+    mode = 'markers',
+    type = 'scatter',
+    name = paste("Real Peak", strftime(pred_list$xcoord_list$test,format="%H:%M:%S",tz="UTC")),
+    marker = list(color = ("red"),size=13,symbol="triangle-up")
+  ) %>%
     add_trace(
-      x =  ~ pred_list$xcoord_list[6],
-      y =  ~ pred_list$ymax_list[6],
+      x =  ~ pred_list$xcoord_list$mean,
+      y =  ~ 63000,
       mode = 'markers',
       type = 'scatter',
-      name = paste("Random Forest Predicted Daily Peak",strftime(pred_list$xcoord_list[6],format="%H:%M:%S",tz="UTC")),
-      marker = list(color = ("black"),size=9,symbol="square")
-    ) %>%
-    add_trace(
-      x =  ~ pred_list$xcoord_list[7],
-      y =  ~ 65000,
-      mode = 'markers',
-      type = 'scatter',
-      name = paste("AVG",strftime(pred_list$xcoord_list[7],format="%H:%M:%S",tz="UTC")),
+      name = paste("Mean",strftime(pred_list$xcoord_list$mean,format="%H:%M:%S",tz="UTC")),
       marker = list(color = ("red"),size=9,symbol="square")
     ) %>%
     layout(

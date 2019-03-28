@@ -299,7 +299,7 @@ xcoord_test_pred <-
 
 
 
-xcoord_list<-c(xcoord_test_pred,xcoord_LSTM_pred, xcoord_cubist_pred, xcoord_xgboost_pred,
+xcoord_list<-list("test"=xcoord_test_pred,xcoord_LSTM_pred, xcoord_cubist_pred, xcoord_xgboost_pred,
                xcoord_deepLearning_pred, xcoord_RF_pred, xcoord_avg_pred)
 
 ymax_list<-c(ymax_test_pred,ymax_LSTM_pred,ymax_cubist_pred,ymax_xgboost_pred,

@@ -5,7 +5,6 @@ library (dplyr)
 library(caret)
 library(rpart.plot)
 library(reticulate)
-library(keras)
 library(readr)
 library(plotly)
 library(lubridate)
@@ -16,25 +15,21 @@ library(xgboost)
 #initialize H2O
 h2o.init()
 
-
 make_predictions<-function(date_str){
   
   ######################################### set dates ############################################
   
-  h2o.removeAll()
-  k_clear_session()
-  
   date_str<-as.character(date_str)
   prediction_date <- as.Date(date_str)
   day_before<-prediction_date - 1
-  last_30days_date <- prediction_date - 7
+  last_60days_date <- prediction_date - 60
   
   #dates to string
   day_before_str<-as.character.Date(day_before)
-  last_30days_date_str<-as.character.Date(last_30days_date)
+  last_60days_date_str<-as.character.Date(last_60days_date)
   
   #boundaries
-  training_beginning<-data %>% filter(str_detect(datetime, last_30days_date_str))
+  training_beginning<-data %>% filter(str_detect(datetime, last_60days_date_str))
   training_end<-data %>% filter(str_detect(datetime, day_before_str))
   
   start<-training_beginning$X[1]
@@ -47,9 +42,6 @@ make_predictions<-function(date_str){
   test_set<-data %>% filter(str_detect(datetime, date_str))
   test_set<-test_set[,c(-1,-2,-19,-20)]
   
-  scaled_test_set<-scaled_data %>% filter(str_detect(datetime, date_str))
-  scaled_test_set<-scaled_test_set[,c(-1,-2,-19,-20)]
-  
   #fill missing rows copies of the last row
   if(nrow(test_set) < 288){
     rows_needed<-288 - nrow(test_set)
@@ -59,19 +51,6 @@ make_predictions<-function(date_str){
     for(i in seq(1:rows_needed)){
       
       test_set <- rbind(test_set,new_row)
-    }
-    
-  }
-  
-  #fill missing rows copies of the last row
-  if(nrow(scaled_test_set) < 288){
-    rows_needed<-288 - nrow(scaled_test_set)
-    last_row<-test_set[nrow(scaled_test_set),]
-    new_row<-data.frame(last_row)
-    #fwts=0,sint=0,cost=0,temp=0,dew=0,hum=0,wspd=0,vis=0,pres=0,mon=0,tue=wed   thu   fri   sat   sun
-    for(i in seq(1:rows_needed)){
-      
-      scaled_test_set <- rbind(scaled_test_set,new_row)
     }
     
   }
@@ -113,174 +92,77 @@ make_predictions<-function(date_str){
                              ntrees=500,
                              max_depth=10,
                              training_frame=as.h2o(training_set),
-                             seed=1242525
-  )
+                             seed=1242525)
   
   prediction_RF = as.vector(predict(RF_model, newdata = as.h2o(test_set[-1])))
   
+  #free memory
+  h2o.removeAll()
   
-  #Load FWTS Model
-  fwts_lstm_model_lag288_mv <-
-    load_model_hdf5(
-      "/Users/ivan/Google Drive/Degree Project/Repository/Hydro-prediction-System/training_data/saved_models/Stateful_Lag288_FWTS_MV16_MODEL",
-      compile = TRUE
-    )
+  ######################################### times of the day #############################################
   
-  #********************************************************#
-  #LSTM
-  
-  #create arrays
-  testX_sint_vector<- scaled_test_set$sint
-  testX_sint_array <- array(data = testX_sint_vector,dim = c(length(testX_sint_vector),1,1))
-  
-  testX_cost_vector<-scaled_test_set$cost
-  testX_cost_array <- array(data = testX_cost_vector,dim = c(length(testX_cost_vector),1,1))
-  
-  testX_temp_vector<-scaled_test_set$temp
-  testX_temp_array <- array(data = testX_temp_vector,dim = c(length(testX_temp_vector),1,1))
-  
-  testX_hum_vector<-scaled_test_set$hum
-  testX_hum_array <- array(data = testX_hum_vector,dim = c(length(testX_hum_vector),1,1))
-  
-  testX_dew_vector<-scaled_test_set$dew
-  testX_dew_array <- array(data = testX_dew_vector,dim = c(length(testX_dew_vector),1,1))
-  
-  testX_wspd_vector<-scaled_test_set$wspd
-  testX_wspd_array <- array(data = testX_wspd_vector,dim = c(length(testX_wspd_vector),1,1))
-  
-  testX_vis_vector<-scaled_test_set$vis
-  testX_vis_array <- array(data = testX_vis_vector,dim = c(length(testX_vis_vector),1,1))
-  
-  testX_pres_vector<-scaled_test_set$pres
-  testX_pres_array <- array(data = testX_pres_vector,dim = c(length(testX_pres_vector),1,1))
-  
-  
-  testX_mon_vector<-scaled_test_set$mon
-  testX_mon_array <- array(data = testX_mon_vector,dim = c(length(testX_mon_vector),1,1))
-  
-  testX_tue_vector<-scaled_test_set$tue
-  testX_tue_array <- array(data = testX_tue_vector,dim = c(length(testX_tue_vector),1,1))
-  
-  testX_wed_vector<-scaled_test_set$wed
-  testX_wed_array <- array(data = testX_wed_vector,dim = c(length(testX_wed_vector),1,1))
-  
-  testX_thu_vector<-scaled_test_set$thu
-  testX_thu_array <- array(data = testX_thu_vector,dim = c(length(testX_thu_vector),1,1))
-  
-  testX_fri_vector<-scaled_test_set$fri
-  testX_fri_array <- array(data = testX_fri_vector,dim = c(length(testX_fri_vector),1,1))
-  
-  testX_sat_vector<-scaled_test_set$sat
-  testX_sat_array <- array(data = testX_sat_vector,dim = c(length(testX_sat_vector),1,1))
-  
-  testX_sun_vector<-scaled_test_set$sun
-  testX_sun_array <- array(data = testX_sun_vector,dim = c(length(testX_sun_vector),1,1))
-  
-  testX_fwts_vector<-scaled_test_set$fwts
-  testX_fwts_array <- array(data = testX_fwts_vector,dim = c(length(testX_fwts_vector),1,1))
-  
-  fwts_testX_input_list <- list(
-    testX_fwts_array,testX_temp_array,testX_dew_array,testX_hum_array,testX_wspd_array,testX_vis_array,testX_pres_array,testX_mon_array,testX_tue_array,testX_wed_array,testX_thu_array,testX_fri_array,testX_sat_array,testX_sun_array,testX_sint_array,testX_cost_array
-  )
-  
-  #predictions FWTS Model
-  predictions_fwts <-
-    fwts_lstm_model_lag288_mv %>% predict(fwts_testX_input_list, batch_size = 72) %>% .[, 1]
-  
-  pred_array_fwts <-
-    array(data = predictions_fwts, dim = c(length(predictions_fwts), 1, 1))
-  
-  predictions_df <-
-    data.frame(matrix(ncol = 4, nrow = 288))
-  columns = c("datetime",
-              "brts_pred",
-              "fwts_pred",
-              "pats_pred")
-  
-  colnames(predictions_df) <- columns
-  
-  predictions_df$fwts_pred <- predictions_fwts
-  
-  # format date and time
+  #format date and time
   predictionDate <- as.Date(prediction_date)
-  predictions_df$datetime <-
-    seq(ymd_hm(paste(predictionDate, "00:00")), ymd_hm(paste(predictionDate, "23:55")), by =
-          "5 min")
   
-  #split date and time in two columns
-  predictions_df$date<-as.Date(predictions_df$datetime)
-  predictions_df$time<-strftime(predictions_df$datetime,format="%H:%M:%S",tz="UTC")
+  datetimes <-seq(ymd_hm(paste(predictionDate, "00:00")),
+                  ymd_hm(paste(predictionDate, "23:55")), 
+                  by = "5 min")
   
+  ##################################### Find peak values  ######################################
   
-  #read attributes needed to reverse scaling process
-  attribute_centre_fwts <-
-    as.numeric(
-      read_lines(
-        "/Users/ivan/Google Drive/Degree Project/Repository/Hydro-prediction-System/training_data/saved_attributes/attribute_centre_fwts_stateful_lag288.txt"
-      )
-    )
-  
-  attribute_scale_fwts <-
-    as.numeric(
-      read_lines(
-        "/Users/ivan/Google Drive/Degree Project/Repository/Hydro-prediction-System/training_data/saved_attributes/attribute_scale_fwts_stateful_lag288.txt"
-      )
-    )
-  
-  #******************************* Rescale LSTM predictions ***************************************#
-  
-  predictions_df$fwts_pred <-
-    (predictions_df$fwts_pred * attribute_scale_fwts + attribute_centre_fwts) ^ 2
-  
-  #******************************* find peak values ***************************************#
-  #LSTM Predicted Daily Peak
-  ymax_LSTM_pred = max(predictions_df$fwts_pred[144:288])
-  xcoord_LSTM_pred <-
-    predictions_df$datetime[which.max(predictions_df$fwts_pred[144:288]) + 143]
   
   #Cubist Predicted Daily Peak
   ymax_cubist_pred = max(prediction_cubist[144:288])
   xcoord_cubist_pred <-
-    predictions_df$datetime[which.max(prediction_cubist[144:288]) + 143]
+    datetimes[which.max(prediction_cubist[144:288]) + 143]
   
   #XGBoost Predicted Daily Peak
   ymax_xgboost_pred = max(prediction_xgboost[144:288])
   xcoord_xgboost_pred <-
-    predictions_df$datetime[which.max(as.vector(prediction_xgboost[144:288])) + 143]
+    datetimes[which.max(as.vector(prediction_xgboost[144:288])) + 143]
   
   #Deep learning Predicted Daily Peak
   ymax_deepLearning_pred = max(prediction_deepLearning[144:288])
   xcoord_deepLearning_pred <-
-    predictions_df$datetime[which.max(as.vector(prediction_deepLearning[144:288])) + 143]
+    datetimes[which.max(as.vector(prediction_deepLearning[144:288])) + 143]
   
   #Random Forest Predicted Daily Peak
   ymax_RF_pred = max(prediction_RF[144:288])
   xcoord_RF_pred <-
-    predictions_df$datetime[which.max(prediction_RF[144:288]) + 143]
+    datetimes[which.max(prediction_RF[144:288]) + 143]
   
-  #average of peak times
-  xcoord_avg_pred <- strptime(prediction_date, "%Y-%m-%d")-mean(difftime(
+  #Avg of all peak times
+  prediction_avg = (prediction_xgboost + prediction_cubist + 
+                      prediction_deepLearning + prediction_RF ) / 4
+  
+  ymax_avg_pred = max(prediction_avg[144:288])
+  xcoord_avg_pred <-
+    datetimes[which.max(prediction_avg[144:288]) + 143]
+  
+  #mean of peak times
+  xcoord_mean_pred <- strptime(prediction_date, "%Y-%m-%d")-mean(difftime(
     paste(prediction_date, "00:00:00", sep=" "),
     c(xcoord_xgboost_pred, xcoord_cubist_pred, xcoord_deepLearning_pred,
-      xcoord_RF_pred, xcoord_LSTM_pred),
+      xcoord_RF_pred,xcoord_avg_pred),
     units = "secs"))
   
-  #xcoord_avg_pred <-as.character(xcoord_avg_pred)
   
   #Test data peak
   ymax_test_pred = max(test_set$fwts[144:288])
   xcoord_test_pred <-
-    predictions_df$datetime[which.max(test_set$fwts[144:288]) + 143]
+    datetimes[which.max(test_set$fwts[144:288]) + 143]
   
-  xcoord_list<-c(xcoord_test_pred, xcoord_LSTM_pred, xcoord_cubist_pred, xcoord_xgboost_pred,
-                 xcoord_deepLearning_pred, xcoord_RF_pred, xcoord_avg_pred)
   
-  ymax_list<-c(ymax_test_pred, ymax_LSTM_pred, ymax_cubist_pred, ymax_xgboost_pred,
-               ymax_deepLearning_pred, ymax_RF_pred)
+  #lists
+  xcoord_list<-list("test"=xcoord_test_pred, "cubist"=xcoord_cubist_pred, "xgboost"=xcoord_xgboost_pred, 
+                 "DL"=xcoord_deepLearning_pred, "RF"=xcoord_RF_pred, "avg"=xcoord_avg_pred, "mean"=xcoord_mean_pred)
   
-  list_of_preditcions<-list("hours"=predictions_df$datetime,"test"=test_set$fwts,"LSTM"=predictions_df$fwts_pred, 
-                               "cubist"= prediction_cubist,"xgboost"=prediction_xgboost,"DL"=prediction_deepLearning,
-                               "RF"=prediction_RF,"xcoord_list"=xcoord_list, "ymax_list"=ymax_list)
+  ymax_list<-list("test"=ymax_test_pred, "cubist"=ymax_cubist_pred, "xgboost"=ymax_xgboost_pred,
+               "DL"=ymax_deepLearning_pred, "RF"=ymax_RF_pred, "avg"=ymax_avg_pred)
+  
+  list_of_preditcions<-list("hours"=datetimes,"test"=test_set$fwts, "AVG"= prediction_avg,
+                            "cubist"= prediction_cubist,"xgboost"=prediction_xgboost,"DL"=prediction_deepLearning,
+                            "RF"=prediction_RF,"xcoord_list"=xcoord_list, "ymax_list"=ymax_list)
   
   
   return(list_of_preditcions)
