@@ -1,4 +1,5 @@
 library (dplyr)
+library(shiny)
 
 setwd("C:/Users/Administrator/Documents/GitHub/Hydro-Prediction-System/training_data")
 #setwd("~/Google Drive/Degree Project/Repository/Hydro-prediction-System/training_data")
@@ -14,7 +15,9 @@ data$pres[is.na(data$pres)] <- 0
 
 #load functions
 source('make_predictions_fcn.R')
-source('daily_plot_fcn.R')
+#source('daily_plot_fcn.R')
+source('plot2.R')
+
 
 #open dashboard in browser
 runApp('Dashboard.R', launch.browser = TRUE)
