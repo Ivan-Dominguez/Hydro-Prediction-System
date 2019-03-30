@@ -24,14 +24,14 @@ h2o.init()
 data <- read.csv("G:/degree project/trainingFile_fwts.csv", header=TRUE, sep=",", na.strings=c("NA", "NULL"),stringsAsFactors=FALSE)
 data$pres = as.numeric(data$pres)
 peak_times_list<-c(RFcoord_fwts_pred,XGcoord_pred,CUcoord_pred,DLcoord_pred,AVEcoord_pred,MEDIAN_pred,xcoord_test_pred)
-pred_times <-data.frame(matrix(nrow = 30, ncol = 8))
+pred_times <-data.frame(matrix(nrow = 370, ncol = 8))
 columns = c("Date","xgboost", "cubist","deepLearning","rf", "avg", "median", "real_peak")
 colnames(pred_times) <- columns
 ######################################### set dates ############################################
-prediction_date_str<-"2018-02-28"
+prediction_date_str<-"2017-04-01"
 prediction_date <- as.Date(prediction_date_str)
-i=0
-while(i<9){
+i=1
+while(i<356){
 prediction_date=prediction_date+1;
 day_before<-prediction_date - 1
 last_30days_date <- prediction_date - 60
@@ -255,4 +255,13 @@ pl
 output=paste("G:/degree project/OUTPUT/test2/",prediction_date,".html", sep="")
 htmlwidgets::saveWidget(pl, output)
 i=i+1;
+}
+na.omit(pred_times)
+i=1
+while(i<48){
+print(difftime(
+  pred_times$real_peak[i],
+  c(pred_times$xgboost[i],pred_times$cubist[i],pred_times$deeplearning[i],pred_times$rf[i],pred_times$avg[i],pred_times$median[i]),
+  units = "min"))
+i=i+1
 }
