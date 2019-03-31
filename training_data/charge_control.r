@@ -1,7 +1,6 @@
 library(mailR)
 
 charge_Control<-function(){
-  print("charge request")
 send.mail(from="gavydong@gmail.com",
           to="gavydong@outlook.com",
           subject="Start charging",

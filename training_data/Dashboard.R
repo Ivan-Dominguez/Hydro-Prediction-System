@@ -74,7 +74,10 @@ server <- function(input, output) {
   output$charging_txt <- renderText({
     paste("Control charging station")
   })
- 
+  #charge button
+  observeEvent(input$charge_btn, {
+        charge_Control()
+    })
   #run predictions
   predictions_list<-reactive({
     
@@ -86,24 +89,11 @@ server <- function(input, output) {
       )
     }
   })
-  #charge button
-  charge<-reactive({
-    #wait until Run button is clicked
-    if(input$charge_btn > 0)
-    {
-        print('charge request')
-    }
-  })
+  
+  
   #discharge button
-  discharge<-reactive({
-    
-    #wait until Run button is clicked
-    if(input$discharge_btn > 0)
-    {
-      isolate(
-        a<-discharge_Control()
-      )
-    }
+  observeEvent(input$discharge_btn, {
+    discharge_Control()
   })
   
   #keep track of checkboxes
