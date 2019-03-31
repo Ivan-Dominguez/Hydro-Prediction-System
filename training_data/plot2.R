@@ -112,7 +112,7 @@ plot2<-function(pred_list, predictionDate, checkbox_list, mean_values){
       mode = 'markers',
       type = 'scatter',
       name = paste("Cubist Predicted Peak", strftime(pred_list$xcoord_list$cubist,format="%H:%M",tz="UTC")),
-      marker = list(color = ("black"),size=9,symbol="circle")
+      marker = list(color = 'rgb(255, 0, 255)',size=8,symbol="circle")
     ) 
   }
     
@@ -125,7 +125,7 @@ plot2<-function(pred_list, predictionDate, checkbox_list, mean_values){
       mode = 'markers',
       type = 'scatter',
       name = paste("XGBoost Predicted Peak",strftime(pred_list$xcoord_list$xgboost,format="%H:%M",tz="UTC")),
-      marker = list(color = ("black"),size=9,symbol="circle")
+      marker = list(color = ("blue"),size=8,symbol="circle")
     )
   }
   
@@ -138,7 +138,7 @@ plot2<-function(pred_list, predictionDate, checkbox_list, mean_values){
       mode = 'markers',
       type = 'scatter',
       name = paste("Deep Learning Predicted Peak",strftime(pred_list$xcoord_list$DL,format="%H:%M",tz="UTC")),
-      marker = list(color = ("black"),size=9,symbol="circle")
+      marker = list(color = 'rgb(255, 128, 0)',size=8,symbol="circle")
     )
   }
   
@@ -151,17 +151,12 @@ plot2<-function(pred_list, predictionDate, checkbox_list, mean_values){
       mode = 'markers',
       type = 'scatter',
       name = paste("Random Forest Predicted Peak",strftime(pred_list$xcoord_list$RF,format="%H:%M",tz="UTC")),
-      marker = list(color = ("black"),size=9,symbol="circle")
+      marker = list(color = ("green"),size=8,symbol="circle")
     )
   }
   
   #AVG
   if(checkbox_list$avg_chk){ 
-    
-    
-    # avg_peak = max(prediction_avg[144:288])
-    # avg_peak_time <-
-    #   pred_list$hours[which.max(prediction_avg[144:288]) + 143]
     
     pl<- add_trace(
       pl,
@@ -170,7 +165,7 @@ plot2<-function(pred_list, predictionDate, checkbox_list, mean_values){
       mode = 'markers',
       type = 'scatter',
       name = paste("AVG Predicted Peak", strftime(mean_values$avg_peak_time,format="%H:%M",tz="UTC")),
-      marker = list(color = ("black"),size=9,symbol="circle")
+      marker = list(color = 'rgb(255, 215, 0)',size=8,symbol="circle")
     )
   } 
   
@@ -194,7 +189,7 @@ plot2<-function(pred_list, predictionDate, checkbox_list, mean_values){
     mode = 'markers',
     type = 'scatter',
     name = paste("Mean",strftime(mean_values$mean_peak_time,format="%H:%M",tz="UTC")),
-    marker = list(color = 'rgb(0, 191, 255)',size=9,symbol="square")
+    marker = list(color = 'rgb(0, 191, 255)',size=10,symbol="square")
   )
   
   return(pl) 

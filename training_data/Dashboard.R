@@ -14,7 +14,7 @@ ui <- dashboardPage(
     
     textInput("date_txt", "Enter date (YYYY-MM-DD)", "2018-03-02"),
     
-    actionButton("run_btn","Start"),
+    actionButton("run_btn","Start", icon = icon("play-circle")),
    
     
     verbatimTextOutput("remove_txt"),
