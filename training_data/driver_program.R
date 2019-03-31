@@ -1,8 +1,7 @@
 library (dplyr)
 library(shiny)
 
-setwd("C:/Users/Administrator/Documents/GitHub/Hydro-Prediction-System/training_data")
-#setwd("~/Google Drive/Degree Project/Repository/Hydro-prediction-System/training_data")
+setwd("~/Google Drive/Degree Project/Repository/Hydro-prediction-System/training_data")
 
 #set time zone
 Sys.setenv(TZ='UTC')
@@ -17,6 +16,7 @@ data$pres[is.na(data$pres)] <- 0
 source('make_predictions_fcn.R')
 #source('daily_plot_fcn.R')
 source('plot2.R')
+source("get_mean_values_fcn.R")
 
 
 #open dashboard in browser

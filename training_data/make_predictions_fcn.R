@@ -22,7 +22,7 @@ make_predictions<-function(date_str){
   date_str<-as.character(date_str)
   prediction_date <- as.Date(date_str)
   day_before<-prediction_date - 1
-  last_60days_date <- prediction_date - 7
+  last_60days_date <- prediction_date - 60
   
   #dates to string
   day_before_str<-as.character.Date(day_before)
@@ -131,22 +131,6 @@ make_predictions<-function(date_str){
   xcoord_RF_pred <-
     datetimes[which.max(prediction_RF[144:288]) + 143]
   
-  #Avg of all peak times
-  prediction_avg = (prediction_xgboost + prediction_cubist + 
-                      prediction_deepLearning + prediction_RF ) / 4
-  
-  ymax_avg_pred = max(prediction_avg[144:288])
-  xcoord_avg_pred <-
-    datetimes[which.max(prediction_avg[144:288]) + 143]
-  
-  #mean of peak times
-  xcoord_mean_pred <- strptime(prediction_date, "%Y-%m-%d")-mean(difftime(
-    paste(prediction_date, "00:00:00", sep=" "),
-    c(xcoord_xgboost_pred, xcoord_cubist_pred, xcoord_deepLearning_pred,
-      xcoord_RF_pred,xcoord_avg_pred),
-    units = "secs"))
-  
-  
   #Test data peak
   ymax_test_pred = max(test_set$fwts[144:288])
   xcoord_test_pred <-
@@ -155,13 +139,13 @@ make_predictions<-function(date_str){
   
   #lists
   xcoord_list<-list("test"=xcoord_test_pred, "cubist"=xcoord_cubist_pred, "xgboost"=xcoord_xgboost_pred, 
-                 "DL"=xcoord_deepLearning_pred, "RF"=xcoord_RF_pred, "avg"=xcoord_avg_pred, "mean"=xcoord_mean_pred)
+                 "DL"=xcoord_deepLearning_pred, "RF"=xcoord_RF_pred)
   
   ymax_list<-list("test"=ymax_test_pred, "cubist"=ymax_cubist_pred, "xgboost"=ymax_xgboost_pred,
-               "DL"=ymax_deepLearning_pred, "RF"=ymax_RF_pred, "avg"=ymax_avg_pred)
+               "DL"=ymax_deepLearning_pred, "RF"=ymax_RF_pred)
   
-  list_of_preditcions<-list("hours"=datetimes,"test"=test_set$fwts, "AVG"= prediction_avg,
-                            "cubist"= prediction_cubist,"xgboost"=prediction_xgboost,"DL"=prediction_deepLearning,
+  list_of_preditcions<-list("hours"=datetimes,"test"=test_set$fwts,"cubist"= prediction_cubist,
+                            "xgboost"=prediction_xgboost,"DL"=prediction_deepLearning,
                             "RF"=prediction_RF,"xcoord_list"=xcoord_list, "ymax_list"=ymax_list)
   
   
