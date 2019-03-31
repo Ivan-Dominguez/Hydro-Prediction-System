@@ -24,8 +24,6 @@ ui <- dashboardPage(
     checkboxInput("avg_chk", "Average", TRUE),
     checkboxInput("test_chk", "Test Data", TRUE),
     
-    actionButton("modify_btn","Modify Graph"),
-    
     p("Remove curves from graph")
   ),
   

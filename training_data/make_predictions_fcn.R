@@ -22,7 +22,7 @@ make_predictions<-function(date_str){
   date_str<-as.character(date_str)
   prediction_date <- as.Date(date_str)
   day_before<-prediction_date - 1
-  last_60days_date <- prediction_date - 60
+  last_60days_date <- prediction_date - 7
   
   #dates to string
   day_before_str<-as.character.Date(day_before)

@@ -75,12 +75,31 @@ plot2<-function(pred_list, predictionDate, checkbox_list){
   #AVG
   if(checkbox_list$avg_chk){ 
     
-    # prediction_avg = (pred_list$cubist + 
-    #                     prediction_deepLearning + prediction_RF ) / 4
-    # 
+    sum_pred<-0
+    divisor<-0
+    
+    if(checkbox_list$cubist_chk){
+      sum_pred<-sum_pred + pred_list$cubist
+      divisor<-divisor + 1
+    }
+    if(checkbox_list$xgb_chk){
+      sum_pred<-sum_pred + pred_list$xgboost
+      divisor<-divisor + 1
+    }
+    if(checkbox_list$dl_chk){
+      sum_pred<-sum_pred + pred_list$DL
+      divisor<-divisor + 1
+    }
+    if(checkbox_list$rf_chk){
+      sum_pred<-sum_pred + pred_list$RF
+      divisor<-divisor + 1
+    }
+    
+    prediction_avg = sum_pred/divisor
+
     pl<-add_trace(
       pl,
-      y =  ~ pred_list$AVG,
+      y =  ~ prediction_avg,
       x =  ~ pred_list$hours,
       mode = 'lines',
       type = 'scatter',
@@ -104,7 +123,7 @@ plot2<-function(pred_list, predictionDate, checkbox_list){
   }
   
   
-  ######################## peaks #####################
+  ###################################### peaks ################################################
   
   #cubist
   if(checkbox_list$cubist_chk){ 
@@ -160,13 +179,19 @@ plot2<-function(pred_list, predictionDate, checkbox_list){
   
   #AVG
   if(checkbox_list$avg_chk){ 
+    
+    
+    avg_peak = max(prediction_avg[144:288])
+    avg_peak_time <-
+      pred_list$hours[which.max(prediction_avg[144:288]) + 143]
+    
     pl<- add_trace(
       pl,
-      x =  ~ pred_list$xcoord_list$avg,
-      y =  ~ pred_list$ymax_list$avg,
+      y =  ~ avg_peak,
+      x =  ~ avg_peak_time,
       mode = 'markers',
       type = 'scatter',
-      name = paste("AVG Predicted Peak", strftime(pred_list$xcoord_list$avg,format="%H:%M",tz="UTC")),
+      name = paste("AVG Predicted Peak", strftime(avg_peak_time,format="%H:%M",tz="UTC")),
       marker = list(color = ("black"),size=9,symbol="circle")
     )
   } 
@@ -175,8 +200,8 @@ plot2<-function(pred_list, predictionDate, checkbox_list){
   if(checkbox_list$test_chk){ 
     pl<- add_trace(
       pl,
-      x =  ~ pred_list$xcoord_list$test,
       y =  ~ pred_list$ymax_list$test,
+      x =  ~ pred_list$xcoord_list$test,
       mode = 'markers',
       type = 'scatter',
       name = paste("Real Peak", strftime(pred_list$xcoord_list$test,format="%H:%M",tz="UTC")),
@@ -185,17 +210,42 @@ plot2<-function(pred_list, predictionDate, checkbox_list){
   }  
   
   #Mean
-  if(TRUE){ 
-    pl<- add_trace(
-      pl,
-      x =  ~ pred_list$xcoord_list$mean,
-      y =  ~ pred_list$ymax_list$test + 2000,
-      mode = 'markers',
-      type = 'scatter',
-      name = paste("Mean",strftime(pred_list$xcoord_list$mean,format="%H:%M",tz="UTC")),
-      marker = list(color = 'rgb(0, 191, 255)',size=9,symbol="square")
-    )
-  } 
+  pred_vector<-as_datetime(NA)
+
+  if(checkbox_list$cubist_chk){
+    pred_vector<-c(pred_vector, pred_list$xcoord_list$cubist)
+  }
+  if(checkbox_list$xgb_chk){
+    pred_vector<-c(pred_vector, pred_list$xcoord_list$xgboost)
+  }
+  if(checkbox_list$dl_chk){
+    pred_vector<-c(pred_vector, pred_list$xcoord_list$DL)
+  }
+  if(checkbox_list$rf_chk){
+    pred_vector<-c(pred_vector, pred_list$xcoord_list$Rf)
+  }
+  if(checkbox_list$avg_chk){
+    pred_vector<-c(pred_vector,  pred_list$xcoord_list$avg)
+  }
+  
+  #remove 1st element(empty)
+  pred_vector<-pred_vector[2:length( pred_vector)]
+  #mean of peak times
+  mean_time <- strptime(predictionDate, "%Y-%m-%d")-mean(difftime(
+    paste(predictionDate, "00:00:00", sep=" "),
+    pred_vector,
+    units = "secs"))
+    
+    
+  pl<- add_trace(
+    pl,
+    y =  ~ pred_list$ymax_list$test + 2000,
+    x =  ~ mean_time,
+    mode = 'markers',
+    type = 'scatter',
+    name = paste("Mean",strftime(mean_time,format="%H:%M",tz="UTC")),
+    marker = list(color = 'rgb(0, 191, 255)',size=9,symbol="square")
+  )
   
   return(pl) 
 }
