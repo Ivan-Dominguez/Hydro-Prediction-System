@@ -28,7 +28,7 @@ pred_times <-data.frame(matrix(nrow = 370, ncol = 8))
 columns = c("Date","xgboost", "cubist","deepLearning","rf", "avg", "median", "real_peak")
 colnames(pred_times) <- columns
 ######################################### set dates ############################################
-prediction_date_str<-"2017-04-01"
+prediction_date_str<-"2017-08-1"
 prediction_date <- as.Date(prediction_date_str)
 i=1
 while(i<356){

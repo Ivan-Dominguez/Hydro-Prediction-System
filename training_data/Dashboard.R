@@ -86,7 +86,25 @@ server <- function(input, output) {
       )
     }
   })
-  
+  #charge button
+  charge<-reactive({
+    #wait until Run button is clicked
+    if(input$charge_btn > 0)
+    {
+        print('charge request')
+    }
+  })
+  #discharge button
+  discharge<-reactive({
+    
+    #wait until Run button is clicked
+    if(input$discharge_btn > 0)
+    {
+      isolate(
+        a<-discharge_Control()
+      )
+    }
+  })
   
   #keep track of checkboxes
   checkbox_list<-reactive({
