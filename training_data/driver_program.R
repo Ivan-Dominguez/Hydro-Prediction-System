@@ -1,7 +1,8 @@
 library (dplyr)
 library(shiny)
 
-setwd("~/Google Drive/Degree Project/Repository/Hydro-prediction-System/training_data")
+setwd("C:/Users/Administrator/Documents/GitHub/Hydro-Prediction-System/training_data")
+#setwd("~/Google Drive/Degree Project/Repository/Hydro-prediction-System/training_data")
 
 #set time zone
 Sys.setenv(TZ='UTC')
